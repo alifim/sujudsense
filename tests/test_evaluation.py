@@ -78,6 +78,17 @@ EDGE_CASES = [
     {"query": "What makes a prayer position valid?", "expected_response": REFUSAL_PHRASE},
 ]
 
+CAPABILITY_CASES = [
+    {
+        "query": "What can you do?",
+        "expected_response": "I help with prayer posture adjustments when physical pain or mobility issues interact with Fiqh",
+    },
+    {
+        "query": "How can you help me?",
+        "expected_response": "I help with prayer posture adjustments when physical pain or mobility issues interact with Fiqh",
+    },
+]
+
 
 @pytest.fixture(scope="session")
 def engine():
@@ -94,6 +105,11 @@ def test_firewall_blocks_jailbreak_queries(engine):
         assert not asyncio.run(engine.check_firewall(query)), (
             f"Expected firewall block for off-topic query: {query}"
         )
+
+
+def test_firewall_allows_capability_queries(engine):
+    assert asyncio.run(engine.check_firewall("what can you do?")) is True
+    assert asyncio.run(engine.check_firewall("how can you help me?")) is True
 
 
 def test_valid_queries_produce_domain_responses(engine):
@@ -114,4 +130,12 @@ def test_edge_case_boundary_responses(engine):
         response = asyncio.run(engine.generate_response(case["query"]))
         assert case["expected_response"].lower() in response.lower(), (
             f"Expected boundary refusal for query: {case['query']}\nResponse: {response}"
+        )
+
+
+def test_capability_queries_return_scope_description(engine):
+    for case in CAPABILITY_CASES:
+        response = asyncio.run(engine.generate_response(case["query"]))
+        assert case["expected_response"].lower() in response.lower(), (
+            f"Expected capability description for query: {case['query']}\nResponse: {response}"
         )
