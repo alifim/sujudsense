@@ -1,0 +1,12 @@
+.git
+.gitignore
+.env.template
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+chroma_db
+hf_cache
+*.log
+.DS_Store

@@ -15,3 +15,6 @@ wheels/
 # Data
 chroma_db
 data
+
+# Secrets
+.env
