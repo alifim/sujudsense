@@ -144,3 +144,5 @@ export LOG_LEVEL=DEBUG
 chainlit run app.py
 
 ```
+
+Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
