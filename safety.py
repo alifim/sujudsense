@@ -87,6 +87,10 @@ class SafetyPolicy:
         "Ask me about a specific issue such as knee pain in Sujud or back strain in Ruku."
     )
 
+    MEDICAL_NOTICE = (
+        "If you have severe or worsening pain, please consult a medical professional before trying any physical adjustments."
+    )
+
     @classmethod
     def _contains_medical_terms(cls, query: str) -> bool:
         query_lower = query.lower()

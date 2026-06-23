@@ -13,7 +13,7 @@ class AppConfig:
     # LLM Settings
     llm_model: str = os.getenv("LLM_MODEL", "llama-3.3-70b-versatile")
     llm_temperature: float = float(os.getenv("LLM_TEMPERATURE", "0.1"))
-    llm_max_tokens: int = int(os.getenv("LLM_MAX_TOKENS", "250"))
+    llm_max_tokens: int = int(os.getenv("LLM_MAX_TOKENS", "512"))
     
     # Security Firewall
     firewall_threshold: float = float(os.getenv("FIREWALL_THRESHOLD", "1.4"))
