@@ -94,6 +94,10 @@ class SujudSenseEngine:
         if self.vector_store is None:
             raise RuntimeError("Vector store is not initialized")
 
+        if SafetyPolicy.should_provide_capability_response(query):
+            logger.debug(f"Firewall Check | Capability query allowed | Query: '{query}'")
+            return True
+
         if SafetyPolicy.should_block(query):
             logger.debug(f"Firewall Check | Off-topic block detected | Query: '{query}'")
             return False
@@ -113,6 +117,9 @@ class SujudSenseEngine:
 
         if SafetyPolicy.should_block(query):
             return SafetyPolicy.JAILBREAK_PHRASE
+
+        if SafetyPolicy.should_provide_capability_response(query):
+            return SafetyPolicy.GENERAL_CAPABILITY_RESPONSE
 
         if SafetyPolicy.should_refuse(query):
             return SafetyPolicy.REFUSAL_PHRASE

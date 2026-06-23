@@ -1,7 +1,5 @@
 from typing import List
 
-from config import config
-
 class SafetyPolicy:
     REFUSAL_PHRASE = (
         "I do not have enough specific biomechanical or jurisprudential context in my current knowledge base "
@@ -73,6 +71,22 @@ class SafetyPolicy:
         "explain",
     ]
 
+    GENERAL_CAPABILITY_PATTERNS: List[str] = [
+        "what can you do",
+        "what are your capabilities",
+        "who are you",
+        "tell me about yourself",
+        "how can you help",
+        "what do you do",
+        "what can i ask",
+    ]
+
+    GENERAL_CAPABILITY_RESPONSE = (
+        "I help with prayer posture adjustments when physical pain or mobility issues interact "
+        "with Fiqh, using only the supplied biomechanics and jurisprudence knowledge. "
+        "Ask me about a specific issue such as knee pain in Sujud or back strain in Ruku."
+    )
+
     @classmethod
     def _contains_medical_terms(cls, query: str) -> bool:
         query_lower = query.lower()
@@ -101,8 +115,17 @@ class SafetyPolicy:
         )
 
     @classmethod
+    def is_capability_query(cls, query: str) -> bool:
+        query_lower = query.lower()
+        return any(pattern in query_lower for pattern in cls.GENERAL_CAPABILITY_PATTERNS)
+
+    @classmethod
     def should_block(cls, query: str) -> bool:
         return cls.is_off_topic(query)
+
+    @classmethod
+    def should_provide_capability_response(cls, query: str) -> bool:
+        return cls.is_capability_query(query)
 
     @classmethod
     def should_refuse(cls, query: str) -> bool:
