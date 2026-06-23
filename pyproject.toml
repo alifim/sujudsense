@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=65.6.3", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "sujudsense"
 version = "0.1.0"
@@ -15,3 +19,6 @@ dependencies = [
     "sentence-transformers>=5.5.1",
     "textloader>=0.0.9",
 ]
+
+[project.optional-dependencies]
+test = ["pytest>=8.0"]
