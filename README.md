@@ -1,3 +1,12 @@
+---
+title: SujudSense
+emoji: 📉
+colorFrom: red
+colorTo: pink
+sdk: docker
+pinned: false
+---
+
 # SujudSense
 
 SujudSense is an AI-powered coaching assistant designed to help Muslims safely adapt their prayer postures (like Ruku and Sujud) when dealing with physical injuries, joint pain, or mobility limitations.
@@ -142,7 +151,46 @@ To inspect the internal database inventory, execute diagnostic runs, or audit in
 ```bash
 export LOG_LEVEL=DEBUG
 chainlit run app.py
-
 ```
 
-Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
+## 🚀 Hugging Face Spaces Deployment
+
+This project can be deployed as a Hugging Face Space using Docker.
+
+### Recommended Hugging Face Space setup
+
+1. Create a new Space on Hugging Face using the Docker SDK type.
+2. Add the Space repository as a git remote in your local repo:
+
+```bash
+git remote add hf https://huggingface.co/spaces/<your-username>/sujudsense
+```
+
+3. Push your current branch to the HF remote:
+
+```bash
+git push hf main
+```
+
+4. Configure required secrets in the Space settings:
+
+- `GROQ_API_KEY`
+- `HF_TOKEN` (optional, only if you need authenticated HF Hub access)
+
+### Spaces configuration
+
+You can provide deployment metadata either through README frontmatter or using a `spaces.yaml` file.
+
+Example `spaces.yaml`:
+
+```yaml
+sdk: docker
+title: SujudSense
+emoji: "📉"
+colorFrom: "red"
+colorTo: "pink"
+pinned: false
+```
+
+For more configuration options, see:
+https://huggingface.co/docs/hub/spaces-config-reference
