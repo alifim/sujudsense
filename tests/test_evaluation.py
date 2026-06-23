@@ -3,6 +3,7 @@ import os
 import pytest
 
 from engine import SujudSenseEngine
+from safety import SafetyPolicy
 
 REFUSAL_PHRASE = (
     "I do not have enough specific biomechanical or jurisprudential context in my current knowledge base "
@@ -93,7 +94,10 @@ CAPABILITY_CASES = [
 @pytest.fixture(scope="session")
 def engine():
     if not os.getenv("GROQ_API_KEY"):
-        pytest.skip("GROQ_API_KEY is not set; SujudSense evaluation requires Groq credentials.")
+        pytest.fail(
+            "GROQ_API_KEY is not set; SujudSense evaluation requires Groq credentials.\n"
+            "Set GROQ_API_KEY in your environment or in .env before running tests."
+        )
 
     engine = SujudSenseEngine()
     asyncio.run(engine.initialize())
@@ -139,3 +143,32 @@ def test_capability_queries_return_scope_description(engine):
         assert case["expected_response"].lower() in response.lower(), (
             f"Expected capability description for query: {case['query']}\nResponse: {response}"
         )
+
+
+def test_response_not_truncated_and_includes_medical_notice(engine):
+    """Ensure the LLM does not return a truncated answer for physical-injury queries
+    and that the medical safety notice is appended."""
+    query = "my knee is hurt. how should i perform prayer?"
+    response = asyncio.run(engine.generate_response(query))
+
+    assert response and response.strip(), f"Empty response for query: {query}"
+
+    # Response should end with terminal punctuation
+    assert response.strip()[-1] in ".!?", f"Response appears truncated: {response!r}"
+
+    # Medical safety notice must be present
+    assert SafetyPolicy.MEDICAL_NOTICE in response, (
+        f"Medical safety notice missing from response: {response!r}"
+    )
+
+    # Response should not end with common truncation fragments
+    bad_endings = (
+        "adjust",
+        "adjustments",
+        "to adjust",
+        "you may need to adjust",
+    )
+    lower = response.strip().lower()
+    assert not any(lower.endswith(be) for be in bad_endings), (
+        f"Response likely truncated (endswith one of {bad_endings}): {response!r}"
+    )
