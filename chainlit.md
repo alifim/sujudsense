@@ -1,14 +1,28 @@
-# Welcome to Chainlit! 🚀🤖
+# Welcome to SujudSense 🕋
 
-Hi there, Developer! 👋 We're excited to have you on board. Chainlit is a powerful tool designed to help you prototype, debug and share applications built on top of LLMs.
+**SujudSense** is an AI-powered coaching assistant designed to help you safely adapt your prayer postures (like *Ruku* and *Sujud*) when dealing with physical injuries, joint pain, or mobility limitations.
 
-## Useful Links 🔗
+> ⚠️ **Disclaimer:** SujudSense is a V1 technology proof-of-concept. It is not a substitute for a licensed medical professional or a qualified Islamic scholar. Always consult a doctor for severe pain.
 
-- **Documentation:** Get started with our comprehensive [Chainlit Documentation](https://docs.chainlit.io) 📚
-- **Discord Community:** Join our friendly [Chainlit Discord](https://discord.gg/k73SQ3FyUh) to ask questions, share your projects, and connect with other developers! 💬
+## How to Use This App
 
-We can't wait to see what you create with Chainlit! Happy coding! 💻😊
+Simply describe your physical limitation or pain, and the assistant will provide an ergonomically sound adjustment backed by established Fiqh. 
 
-## Welcome screen
+**Try asking:**
+* *"I have sharp knee pain when bending fully. How should I modify my Sujud?"*
+* *"My lower back hurts. I can't do ruku properly. What should I do?"*
 
-To modify the welcome screen, edit the `chainlit.md` file at the root of your project. If you do not want a welcome screen, just leave this file empty.
+*(Note: The system is strictly scoped. If you ask a purely medical diagnosis question or a general off-topic question, the safety firewall will respectfully decline to answer.)*
+
+---
+
+## 🛠️ For Developers & Tech Recruiters
+
+SujudSense demonstrates an enterprise-grade, deterministic **Retrieval-Augmented Generation (RAG)** architecture designed to prevent hallucinations and API token-bleeding.
+
+* **The Engine:** Built with LangChain, using a Groq inference backend (`llama-3.3-70b-versatile`).
+* **The Vector Store:** ChromaDB with Hugging Face local CPU embeddings (`sentence-transformers/all-MiniLM-L6-v2`).
+* **The Safety Layer:** Implements a programmatic "Zero-Token Firewall" that calculates L2 vector distance to intercept and drop off-topic or jailbreak queries locally *before* they reach the cloud LLM.
+* **The UI:** Asynchronous WebSocket streaming via Chainlit. 
+
+💻 **[View the full decoupled architecture on GitHub](https://github.com/alifim/sujudsense)**
