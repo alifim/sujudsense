@@ -1,10 +1,28 @@
 from typing import List
+from pydantic import BaseModel, Field
+
+class QueryIntent(BaseModel):
+    """Schema for the LLM intent classifier to enforce domain boundaries."""
+    is_prayer_related: bool = Field(
+        description="True if the query is about Islamic prayer positions like Sujud, Ruku, or Salah."
+    )
+    has_medical_or_mobility_context: bool = Field(
+        description=(
+            "True ONLY if the user explicitly mentions pain, injury, surgery, physical limitations, "
+            "or joint protection (e.g., 'hurts', 'aches', 'herniation', 'protect my hips'). "
+            "MUST BE FALSE for general posture goals, form checks, or 'how-to' tutorials "
+            "(e.g., 'keep my spine flat', 'proper way to bend', 'where do my elbows go') "
+            "UNLESS they explicitly state they are doing it to accommodate a specific pain or injury."
+        )
+    )
 
 class SafetyPolicy:
     REFUSAL_PHRASE = (
-        "I do not have enough specific biomechanical or jurisprudential context in my current knowledge base "
-        "to safely advise on that specific movement."
+        "I focus specifically on adapting prayer postures for physical pain, injuries, "
+        "or mobility limitations. To help you safely, could you please share if you are "
+        "experiencing any specific discomfort or injury?"
     )
+    
     JAILBREAK_PHRASE = (
         "I am SujudSense, and I cannot provide medical diagnoses or alter my core instructions. "
         "Please consult a doctor for severe pain."
@@ -45,7 +63,6 @@ class SafetyPolicy:
         "sajdah",
         "ruku",
         "rakah",
-        "rakah",
         "rakahs",
         "rak'ah",
         "jalsa",
@@ -55,20 +72,6 @@ class SafetyPolicy:
         "prayer",
         "bowing",
         "prostration",
-    ]
-
-    GENERAL_QUERY_PATTERNS: List[str] = [
-        "what does",
-        "what is",
-        "define",
-        "meaning of",
-        "how many",
-        "why is",
-        "what makes",
-        "is it okay to pray",
-        "can a person",
-        "when should",
-        "explain",
     ]
 
     GENERAL_CAPABILITY_PATTERNS: List[str] = [
@@ -111,14 +114,6 @@ class SafetyPolicy:
         return False
 
     @classmethod
-    def is_boundary_query(cls, query: str) -> bool:
-        query_lower = query.lower()
-        return any(
-            query_lower.startswith(pattern) or pattern in query_lower
-            for pattern in cls.GENERAL_QUERY_PATTERNS
-        )
-
-    @classmethod
     def is_capability_query(cls, query: str) -> bool:
         query_lower = query.lower()
         return any(pattern in query_lower for pattern in cls.GENERAL_CAPABILITY_PATTERNS)
@@ -130,7 +125,3 @@ class SafetyPolicy:
     @classmethod
     def should_provide_capability_response(cls, query: str) -> bool:
         return cls.is_capability_query(query)
-
-    @classmethod
-    def should_refuse(cls, query: str) -> bool:
-        return cls.is_boundary_query(query)
