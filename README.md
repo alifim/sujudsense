@@ -75,6 +75,19 @@ The workflow follows a deterministic, sequential security and retrieval pipeline
 
 ---
 
+## 🛡️ Safety and Response Rules
+
+SujudSense applies explicit programmatic safety rules before and after LLM generation:
+
+- **Off-topic/jailbreak blocking:** queries containing blacklisted patterns such as `python script`, `medical advice`, `build a chatbot`, `surgeon`, `hack`, or `ignore previous instructions` are rejected immediately.
+- **Medical-term filtering:** inputs containing medical terms like `doctor`, `surgery`, `injury`, or `diagnosis` are blocked unless they also mention prayer-specific terms such as `sujud`, `ruku`, or `prayer`.
+- **Capability queries:** user questions like `what can you do?`, `who are you`, or `how can you help?` are handled safely and return a brief scope description rather than being sent to the LLM.
+- **Boundary refusals:** general informational queries (`what is`, `define`, `how many`, `why is`, `explain`) return a hard refusal phrase when the requested content is outside the available biomechanics/Fiqh context.
+- **Completeness enforcement:** generated answers are checked for final punctuation and a concise continuation is attempted if the response appears truncated.
+- **Medical safety notice:** when the response suggests physical prayer adjustments, the system appends a medical caution advising consultation with a healthcare professional for severe or worsening pain.
+
+---
+
 ## 📂 Repository Structure
 
 ```
