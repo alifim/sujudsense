@@ -6,6 +6,36 @@ from logger import logger
 
 ENGINE_INSTANCE: SujudSenseEngine | None = None
 ENGINE_INIT_LOCK = asyncio.Lock()
+ENGINE_WARM_SCHEDULED = False
+
+
+@cl.set_starters
+async def set_starters(user: cl.User | None = None, conversation: str | None = None):
+    return [
+        cl.Starter(
+            label="Knee pain guidance",
+            message="My knee is hurt. How should I perform prayer?",
+            icon="/public/knee.svg",
+        ),
+
+        cl.Starter(
+            label="Lower back adjustments",
+            message="I feel lower back pain during Ruku; what adjustments are safe?",
+            icon="/public/back.svg",
+        ),
+
+        cl.Starter(
+            label="Sujud reach issues",
+            message="My palms don't reach the ground in Sujud — what can I do?",
+            icon="/public/sujud.svg",
+        ),
+
+        cl.Starter(
+            label="Chair guidance",
+            message="When should I sit on a chair instead of performing Sujud?",
+            icon="/public/sit.svg",
+        ),
+    ]
 
 async def get_engine() -> SujudSenseEngine:
     global ENGINE_INSTANCE
@@ -21,22 +51,22 @@ async def get_engine() -> SujudSenseEngine:
         ENGINE_INSTANCE = engine
         return ENGINE_INSTANCE
 
+
 @cl.on_chat_start
 async def setup_chat():
     """Initializes the UI and binds the engine instance to the session."""
-    msg = cl.Message(content="Welcome to **SujudSense**. Initializing system...")
-    await msg.send()
-
-    try:
-        engine = await get_engine()
+    # Do not send UI messages here to avoid bypassing starters.
+    # If the engine is already warmed, bind it to the user session.
+    engine = ENGINE_INSTANCE
+    if engine is not None:
         cl.user_session.set("engine", engine)
+        return
 
-        msg.content = "Welcome to **SujudSense**. How can I help you safely adjust your prayer posture today?"
-        await msg.update()
-    except Exception as e:
-        logger.error(f"Failed to bind engine to session: {str(e)}", exc_info=True)
-        msg.content = "System failure. Please contact support."
-        await msg.update()
+    # Otherwise, schedule a background warm-up once and avoid awaiting here.
+    global ENGINE_WARM_SCHEDULED
+    if not ENGINE_WARM_SCHEDULED:
+        asyncio.create_task(get_engine())
+        ENGINE_WARM_SCHEDULED = True
 
 @cl.on_message
 async def handle_query(message: cl.Message):
