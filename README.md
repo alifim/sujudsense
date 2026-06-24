@@ -1,12 +1,3 @@
----
-title: SujudSense
-emoji: 📉
-colorFrom: red
-colorTo: pink
-sdk: docker
-pinned: false
----
-
 # SujudSense
 
 SujudSense is an AI-powered coaching assistant designed to help Muslims safely adapt their prayer postures (like Ruku and Sujud) when dealing with physical injuries, joint pain, or mobility limitations.
@@ -28,7 +19,7 @@ Modifying prayer positions (such as *Ruku* and *Sujud*) due to injury requires a
 * **Decoupled Service-Layer Pattern:** Business logic (`engine.py`) is completely separated from the presentation layer (`app.py`), allowing seamless porting to alternative interfaces (e.g., FastAPI) without rewriting core RAG logic.
 * **Non-Blocking Asynchronous I/O:** Every stage of the data pipeline utilizes native Python `asyncio` (`ainvoke`, `asimilarity_search_with_score`) to prevent database and LLM queries from blocking the server's single-threaded event loop under concurrent user loads.
 * **Cost-Defensive "Zero-Token Firewall":** Intercepts off-topic queries locally on the host CPU using an embedding L2 distance check. Unrelated inputs are rejected immediately, protecting cloud API endpoints from infinite generation loops and off-topic billings.
-* **Adversarial Hardening:** Incorporates structured XML context enclosures and recency-biased security instructions to effectively nullify prompt injection and persona-switching jailbreak attempts.
+* **Adversarial Hardening:** Uses tagged context enclosure markers and recency-biased security instructions to help mitigate prompt injection and persona-switching jailbreak attempts.
 
 ---
 
@@ -66,7 +57,7 @@ The workflow follows a deterministic, sequential security and retrieval pipeline
                           ▼
 ┌────────────────────────────────────────────────────────┐
 │ Phase 3: Hardened Prompt & Enclosure Assembly          │
-│ - Encloses raw source data within strict XML tags      │
+│ - Encloses raw source data within tagged context blocks (`<context>...</context>`) │
 │ - Attaches immutable persona & security directives     │
 └─────────────────────────┬──────────────────────────────┘
                           │
@@ -108,8 +99,8 @@ The system architecture relies entirely on twelve-factor configuration practices
 | Variable | Default Value | Purpose |
 | --- | --- | --- |
 | `LOG_LEVEL` | `INFO` | Toggles telemetry output verbosity (`DEBUG` or `INFO`) |
-| `FIREWALL_THRESHOLD` | `1.2` | Calibrated semantic distance cap for off-topic query rejection |
-| `LLM_MAX_TOKENS` | `250` | Output response limit protecting against token drain |
+| `FIREWALL_THRESHOLD` | `1.4` | Calibrated semantic distance cap for off-topic query rejection |
+| `LLM_MAX_TOKENS` | `512` | Output response limit protecting against token drain |
 | `LLM_TEMPERATURE` | `0.1` | Low temperature variable ensuring highly deterministic generation |
 | `RETRIEVAL_K` | `3` | Number of context documents passed to the compilation prompt |
 | `CHROMA_PERSIST_DIR` | `./chroma_db` | Disk directory mapping for the "Init-Once, Load-Many" persistent layer |
