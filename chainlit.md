@@ -16,7 +16,7 @@ Simply describe your physical limitation or pain, and the assistant will provide
 
 ---
 
-## 🛠️ For Developers & Tech Recruiters
+## 🛠️ For Developers
 
 SujudSense demonstrates an enterprise-grade, deterministic **Retrieval-Augmented Generation (RAG)** architecture designed to prevent hallucinations and API token-bleeding.
 
