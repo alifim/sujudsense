@@ -1,3 +1,12 @@
+---
+sdk: docker
+title: SujudSense
+emoji: "📉"
+colorFrom: "red"
+colorTo: "pink"
+pinned: false
+---
+
 # SujudSense
 
 SujudSense is an AI-powered coaching assistant designed to help Muslims safely adapt their prayer postures (like Ruku and Sujud) when dealing with physical injuries, joint pain, or mobility limitations.
@@ -183,9 +192,9 @@ git push hf main
 
 ### Spaces configuration
 
-You can provide deployment metadata either through README frontmatter or using a `spaces.yaml` file.
+You can provide deployment metadata through README.
 
-Example `spaces.yaml`:
+Example:
 
 ```yaml
 sdk: docker
