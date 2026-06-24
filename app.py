@@ -1,6 +1,25 @@
+import asyncio
+
 import chainlit as cl
 from engine import SujudSenseEngine
 from logger import logger
+
+ENGINE_INSTANCE: SujudSenseEngine | None = None
+ENGINE_INIT_LOCK = asyncio.Lock()
+
+async def get_engine() -> SujudSenseEngine:
+    global ENGINE_INSTANCE
+    if ENGINE_INSTANCE is not None:
+        return ENGINE_INSTANCE
+
+    async with ENGINE_INIT_LOCK:
+        if ENGINE_INSTANCE is not None:
+            return ENGINE_INSTANCE
+
+        engine = SujudSenseEngine()
+        await engine.initialize()
+        ENGINE_INSTANCE = engine
+        return ENGINE_INSTANCE
 
 @cl.on_chat_start
 async def setup_chat():
@@ -9,13 +28,9 @@ async def setup_chat():
     await msg.send()
 
     try:
-        # Instantiate and initialize the business logic service
-        engine = SujudSenseEngine()
-        await engine.initialize()
-        
-        # Store the engine instance in the session
+        engine = await get_engine()
         cl.user_session.set("engine", engine)
-        
+
         msg.content = "Welcome to **SujudSense**. How can I help you safely adjust your prayer posture today?"
         await msg.update()
     except Exception as e:
@@ -28,8 +43,8 @@ async def handle_query(message: cl.Message):
     """Passes user input to the engine and returns the response asynchronously."""
     engine = cl.user_session.get("engine")
     if engine is None:
-        await cl.Message(content="Session expired. Please refresh the page.").send()
-        return
+        engine = await get_engine()
+        cl.user_session.set("engine", engine)
 
     msg = cl.Message(content="Analyzing...")
     await msg.send()
