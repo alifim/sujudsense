@@ -9,9 +9,6 @@ wheels/
 # Virtual environments
 .venv
 
-# Chainlit
-.chainlit
-
 # Data
 chroma_db
 
