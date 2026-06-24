@@ -18,7 +18,7 @@ Modifying prayer positions (such as *Ruku* and *Sujud*) due to injury requires a
 
 * **Decoupled Service-Layer Pattern:** Business logic (`engine.py`) is completely separated from the presentation layer (`app.py`), allowing seamless porting to alternative interfaces (e.g., FastAPI) without rewriting core RAG logic.
 * **Non-Blocking Asynchronous I/O:** Every stage of the data pipeline utilizes native Python `asyncio` (`ainvoke`, `asimilarity_search_with_score`) to prevent database and LLM queries from blocking the server's single-threaded event loop under concurrent user loads.
-* **Cost-Defensive "Zero-Token Firewall":** Intercepts off-topic queries locally on the host CPU using an embedding L2 distance check. Unrelated inputs are rejected immediately, protecting cloud API endpoints from infinite generation loops and off-topic billings.
+* **Cost-Defensive "Zero-Token Firewall":** Intercepts off-topic queries locally on the host CPU using an embedding distance check (Chroma's default L2 distance behavior). Unrelated inputs are rejected immediately, protecting cloud API endpoints from infinite generation loops and off-topic billings.
 * **Adversarial Hardening:** Uses tagged context enclosure markers and recency-biased security instructions to help mitigate prompt injection and persona-switching jailbreak attempts.
 
 ---
@@ -43,14 +43,14 @@ The workflow follows a deterministic, sequential security and retrieval pipeline
       ▼
 ┌────────────────────────────────────────────────────────┐
 │ Phase 1: Zero-Token Firewall (Local CPU Check)         │
-│ - Computes L2 Vector Distance against local embeddings │
+│ - Computes an embedding distance score against local vectors │
 │ - IF best_score > threshold ──► [ Local Refusal Exit ]  │
 └─────────────────────────┬──────────────────────────────┘
                           │ (Passes Threshold)
                           ▼
 ┌────────────────────────────────────────────────────────┐
 │ Phase 2: Asynchronous Diverse Retrieval                │
-│ - Executes non-blocking MMR search against ChromaDB     │
+│ - Executes non-blocking similarity search against ChromaDB │
 │ - Isolates k=3 unique context chunks across data paths │
 └─────────────────────────┬──────────────────────────────┘
                           │
@@ -124,7 +124,7 @@ The system architecture relies entirely on twelve-factor configuration practices
 
 ### 1. Environment Initialization
 
-Ensure Python 3.11+ is active. Set your cloud inference token via your terminal profile or environment manager:
+Ensure Python 3.12+ is active. Set your cloud inference token via your terminal profile or environment manager:
 
 ```bash
 export GROQ_API_KEY="your-production-api-key-here"
