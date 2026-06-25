@@ -25,12 +25,6 @@ async def set_starters(user: cl.User | None = None, conversation: str | None = N
         ),
 
         cl.Starter(
-            label="Sujud reach issues",
-            message="My palms don't reach the ground in Sujud — what can I do?",
-            icon="/public/sujud.svg",
-        ),
-
-        cl.Starter(
             label="Chair guidance",
             message="When should I sit on a chair instead of performing Sujud?",
             icon="/public/sit.svg",
