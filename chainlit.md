@@ -23,7 +23,7 @@ SujudSense demonstrates an enterprise-grade, deterministic **Retrieval-Augmented
 
 * **The Engine:** Built with LangChain, utilizing Groq for high-speed inference (`llama-3.3-70b-versatile`).
 * **Conversational Memory:** Implements a Context Condenser chain to rewrite ambiguous follow-up queries using session history, ensuring firewalls never lose context.
-* **Dual-Layer Safety Firewall:** Uses a fast structured-output Intent Classifier (`llama-3.1-8b-instant`) paired with a local CPU vector distance check (L2) to drop off-topic or jailbreak queries *before* they reach the main reasoning chain.
+* **Dual-Layer Safety Firewall:** Uses a structured-output Intent Classifier (`llama-3.3-70b-versatile`) paired with a local CPU vector distance check (L2) to drop off-topic or jailbreak queries *before* they reach the main reasoning chain.
 * **The Vector Store:** Persistent ChromaDB with Hugging Face local CPU embeddings (`sentence-transformers/all-MiniLM-L6-v2`).
 * **The UI:** Asynchronous WebSocket streaming via Chainlit. 
 

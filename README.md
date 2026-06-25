@@ -26,7 +26,6 @@ Modifying prayer positions due to injury requires a highly delicate balance betw
 ### Key Engineering Highlights
 
 * **Decoupled Service-Layer Pattern:** Business logic (`engine.py`) is completely separated from the presentation layer (`app.py`), allowing seamless porting to alternative interfaces (e.g., FastAPI) without rewriting core RAG logic.
-* **Heavy/Fast LLM Split Routing:** Optimizes latency and API costs by routing simple classification and memory-condensation tasks to a lightning-fast 8B model, reserving the heavy 70B model strictly for final Fiqh/Biomechanics synthesis.
 * **Conversational Memory Condensing:** Implements a pre-processing LLM chain to rewrite ambiguous follow-up questions using session history, ensuring semantic search and firewalls never lose context.
 * **Cost-Defensive Firewalls:** Intercepts off-topic queries locally using structured output Intent Classification and L2 embedding distance checks. Unrelated inputs are rejected immediately, protecting cloud endpoints from infinite generation loops and off-topic billings.
 * **Non-Blocking Asynchronous I/O:** Every stage of the data pipeline utilizes native Python `asyncio` (`ainvoke`, `asimilarity_search_with_score`) to prevent database and LLM queries from blocking the server's single-threaded event loop under concurrent user loads.
@@ -39,8 +38,8 @@ Modifying prayer positions due to injury requires a highly delicate balance betw
 * **Vector Compute & Database:** ChromaDB (Persistent Disk Storage Layout)
 * **Local Embeddings:** Hugging Face `sentence-transformers/all-MiniLM-L6-v2` (CPU-Optimized)
 * **Cloud Inference:** Groq API Cloud Engine 
-  * *Fast Routing/Memory:* `llama-3.1-8b-instant`
-  * *Heavy Synthesis:* `llama-3.3-70b-versatile`
+  * *Routing/Memory:* `llama-3.3-70b-versatile`
+  * *Synthesis:* `llama-3.3-70b-versatile`
 * **Observability:** Centralized Native Python Logging (`logging` module wrapper)
 
 ---
@@ -55,14 +54,14 @@ The workflow follows a deterministic, sequential security and retrieval pipeline
       ▼
 ┌────────────────────────────────────────────────────────┐
 │ Phase 1: Context Condenser (Memory State)              │
-│ - Analyzes history via Fast LLM (Llama 3 8B)           │
+│ - Analyzes history via LLM           │
 │ - Rewrites ambiguous inputs into a Standalone Query    │
 └─────────────────────────┬──────────────────────────────┘
                           │
                           ▼
 ┌────────────────────────────────────────────────────────┐
 │ Phase 2: Dual-Layer Safety Firewall                    │
-│ - Fast LLM checks for medical/prayer overlap           │
+│ - LLM checks for medical/prayer overlap           │
 │ - CPU computes L2 vector distance against valid corpus │
 │ - IF invalid ──► [ Local Refusal Exit ]                │
 └─────────────────────────┬──────────────────────────────┘
@@ -77,7 +76,7 @@ The workflow follows a deterministic, sequential security and retrieval pipeline
                           ▼
 ┌────────────────────────────────────────────────────────┐
 │ Phase 4: Cloud Inference & Execution                   │
-│ - Dispatches execution payload to Heavy LLM (70B)      │
+│ - Dispatches execution payload to LLM      │
 │ - Enforces max_tokens output caps for budget security  │
 └─────────────────────────┬──────────────────────────────┘
                           │
@@ -132,7 +131,7 @@ The system architecture relies entirely on twelve-factor configuration practices
 | `LOG_LEVEL` | `INFO` | Toggles telemetry output verbosity (`DEBUG` or `INFO`) |
 | `FIREWALL_THRESHOLD` | `1.4` | Calibrated semantic distance cap for off-topic query rejection |
 | `HEAVY_LLM_MODEL` | `llama-3.3-70b-versatile` | Model used for final RAG synthesis and reasoning |
-| `FAST_LLM_MODEL` | `llama-3.1-8b-instant` | Model used for low-latency routing and context condensing |
+| `FAST_LLM_MODEL` | `llama-3.3-70b-versatile` | Model used for low-latency routing and context condensing |
 | `LLM_MAX_TOKENS` | `512` | Output response limit protecting against token drain |
 | `LLM_TEMPERATURE` | `0.1` | Low temperature variable ensuring highly deterministic generation |
 | `RETRIEVAL_K` | `3` | Number of context documents passed to the compilation prompt |
