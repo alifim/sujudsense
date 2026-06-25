@@ -2,8 +2,8 @@
 sdk: docker
 title: SujudSense
 emoji: "🕋"
-colorFrom: "teal"
-colorTo: "slate"
+colorFrom: "gray"
+colorTo: "blue"
 pinned: false
 ---
 
