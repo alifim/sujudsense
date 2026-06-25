@@ -58,7 +58,7 @@ class SujudSenseEngine:
 
     def _build_chain(self):
         # Temperature 0 is crucial for deterministic classification and rewriting
-        deterministic_llm = ChatGroq(model=config.llm_model, temperature=0)
+        deterministic_llm = ChatGroq(model=config.fast_llm_model, temperature=0)
         
         # 1. The Intent Classifier
         self.intent_classifier = deterministic_llm.with_structured_output(QueryIntent)
@@ -92,9 +92,9 @@ class SujudSenseEngine:
         ])
 
         llm = ChatGroq(
-            model=config.llm_model, 
-            temperature=config.llm_temperature, 
-            max_tokens=config.llm_max_tokens
+            model=config.heavy_llm_model, 
+            temperature=config.heavy_llm_temperature, 
+            max_tokens=config.heavy_llm_max_tokens
         )
 
         combine_docs_chain = create_stuff_documents_chain(llm, prompt)
