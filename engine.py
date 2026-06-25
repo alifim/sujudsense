@@ -58,10 +58,14 @@ class SujudSenseEngine:
 
     def _build_chain(self):
         # Temperature 0 is crucial for deterministic classification and rewriting
-        deterministic_llm = ChatGroq(model=config.fast_llm_model, temperature=0)
+        deterministic_llm = ChatGroq(
+            model=config.fast_llm_model, 
+            temperature=0,
+            max_tokens=config.fast_llm_model_max_tokens
+        )
         
         # 1. The Intent Classifier
-        self.intent_classifier = deterministic_llm.with_structured_output(QueryIntent)
+        self.intent_classifier = deterministic_llm.with_structured_output(QueryIntent, method="json_schema")
 
         # 2. The Contextual Condenser (Query Rewriter)
         condense_system = (
@@ -102,14 +106,20 @@ class SujudSenseEngine:
 
 
     async def generate_response(self, query: str, chat_history: list) -> str:
-        """Fully asynchronous execution integrating rewriting, firewalls, and generation."""
+        """Fully asynchronous execution integrating rewriting, firewalls, and generation with structured logging."""
         if self.retriever is None or self.rag_chain is None or self.vector_store is None:
+            logger.error("Attempted generation before engine assets were initialized.")
             raise RuntimeError("Engine assets are not fully initialized")
+
+        logger.info(f"Incoming Request | History Depth: {len(chat_history)} | Raw Input: '{query}'")
 
         # 1. Hardcoded Fast-Pass Checks (On Raw Query)
         if SafetyPolicy.should_block(query):
+            logger.warning(f"Security Alert | Hardcoded Policy Triggered | Blocked pattern in raw input: '{query}'")
             return SafetyPolicy.JAILBREAK_PHRASE
+            
         if SafetyPolicy.should_provide_capability_response(query):
+            logger.info("System Route | Capability request handled locally.")
             return SafetyPolicy.GENERAL_CAPABILITY_RESPONSE
 
         # 2. Condense the Query (Memory Injection)
@@ -118,7 +128,7 @@ class SujudSenseEngine:
                 "chat_history": chat_history,
                 "input": query
             })
-            logger.debug(f"Rewritten Standalone Query: '{standalone_query}'")
+            logger.info(f"Memory Condenser | Rewrote to Standalone Query: '{standalone_query}'")
         else:
             standalone_query = query
 
@@ -126,26 +136,35 @@ class SujudSenseEngine:
         raw_results = await self.vector_store.asimilarity_search_with_score(standalone_query, k=1)
         if raw_results:
             _, best_score = raw_results[0]
-            logger.debug(f"Firewall Check | Score: {best_score:.4f}")
+            logger.debug(f"Firewall Check | Vector L2 Distance Score: {best_score:.4f}")
             if best_score > config.firewall_threshold:
+                logger.warning(
+                    f"Firewall Block | L2 Distance Exceeded | Score: {best_score:.4f} > "
+                    f"Threshold: {config.firewall_threshold} | Standalone Query: '{standalone_query}'"
+                )
                 return SafetyPolicy.REFUSAL_PHRASE
 
         # 4. The Intent Classifier Firewall (On Standalone Query)
         try:
             intent = cast(QueryIntent, await self.intent_classifier.ainvoke(standalone_query))
-            logger.debug(f"Intent Classification: {intent.model_dump()}")
+            logger.debug(f"Intent Classification Metrics: {intent.model_dump()}")
             
             if not intent.is_prayer_related or not intent.has_medical_or_mobility_context:
+                logger.warning(
+                    f"Firewall Block | Intent Mismatch | Prayer: {intent.is_prayer_related} | "
+                    f"Medical: {intent.has_medical_or_mobility_context} | Standalone Query: '{standalone_query}'"
+                )
                 return SafetyPolicy.REFUSAL_PHRASE
         except Exception as e:
-            logger.warning(f"Intent classification failed, falling back to safe refusal: {e}")
+            logger.error(f"Firewall System Failure | Intent classification raised exception: {e}", exc_info=True)
             return SafetyPolicy.REFUSAL_PHRASE
 
         # 5. RAG Execution
+        logger.info(f"Execution Pipeline | Dispatching valid query to Heavy Synthesis Chain.")
         if logger.isEnabledFor(logging.DEBUG):
             docs = await self.retriever.ainvoke(standalone_query)
             for i, doc in enumerate(docs):
-                logger.debug(f"Retrieved Chunk {i+1}: {doc.page_content[:100]}...")
+                logger.debug(f"Retrieved Chunk {i+1} Source: {doc.metadata.get('source')} | Preview: {doc.page_content[:100]}...")
 
         response = await self.rag_chain.ainvoke({"input": standalone_query})
         answer = (response.get("answer") or "").strip()
@@ -154,13 +173,14 @@ class SujudSenseEngine:
         truncated_indicators = ("adjust your", "you may need to adjust", "adjust", "to adjust")
         if not answer or answer[-1] not in ".!?" or answer.lower().endswith(truncated_indicators):
             try:
+                logger.info("Output Guardrail | Potential truncation detected. Invoking completion sequence.")
                 cont_prompt = f"Please continue the previous answer concisely. Previous: {answer}"
                 cont_resp = await self.rag_chain.ainvoke({"input": cont_prompt})
                 cont = (cont_resp.get("answer") or "").strip()
                 if cont:
                     answer = f"{answer} {cont}".strip()
             except Exception as e:
-                logger.debug(f"Continuation attempt failed: {e}")
+                logger.warning(f"Output Guardrail | Continuation pass failed execution: {e}")
 
         if answer and answer[-1] not in ".!?":
             answer += "."
@@ -170,5 +190,7 @@ class SujudSenseEngine:
         if any(term in answer.lower() for term in physical_terms):
             if SafetyPolicy.MEDICAL_NOTICE.lower() not in answer.lower():
                 answer = f"{answer} {SafetyPolicy.MEDICAL_NOTICE}"
+                logger.debug("Output Guardrail | Appended standard medical safety notice to response payload.")
 
+        logger.info("Request Cycle Complete | Successfully returned synchronized response.")
         return answer
