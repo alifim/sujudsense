@@ -65,7 +65,7 @@ class SujudSenseEngine:
         )
         
         # 1. The Intent Classifier
-        self.intent_classifier = deterministic_llm.with_structured_output(QueryIntent, method="json_schema")
+        self.intent_classifier = deterministic_llm.with_structured_output(QueryIntent)
 
         # 2. The Contextual Condenser (Query Rewriter)
         condense_system = (
