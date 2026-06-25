@@ -1,9 +1,9 @@
 ---
 sdk: docker
 title: SujudSense
-emoji: "📉"
-colorFrom: "red"
-colorTo: "pink"
+emoji: "🕋"
+colorFrom: "teal"
+colorTo: "slate"
 pinned: false
 ---
 
@@ -19,16 +19,16 @@ SujudSense solves this by restricting the AI to a strict, verified knowledge bas
 
 ## 🚀 High-Level Overview
 
-Modifying prayer positions (such as *Ruku* and *Sujud*) due to injury requires a highly delicate balance between joint ergonomics and canonical alignment. Standard LLMs frequently hallucinate unsafe medical adjustments or invalid jurisprudential exceptions.
+Modifying prayer positions due to injury requires a highly delicate balance between joint ergonomics and canonical alignment. Standard LLMs frequently hallucinate unsafe medical adjustments or invalid jurisprudential exceptions.
 
-**SujudSense** solves this by enforcing a strictly bounded knowledge environment. Operating under a closed-world assumption, the system pairs high-speed vector retrieval with programmatic guardrails to act as a reliable, safety-first assistant. It is engineered defensively to mitigate common production RAG failures: token bleeding, event-loop blocking, and prompt injection attacks.
+**SujudSense** solves this by enforcing a strictly bounded knowledge environment. Operating under a closed-world assumption, the system pairs high-speed vector retrieval with programmatic guardrails to act as a reliable, safety-first assistant. It is engineered defensively to mitigate common production RAG failures: token bleeding, conversational context loss, and prompt injection attacks.
 
 ### Key Engineering Highlights
 
 * **Decoupled Service-Layer Pattern:** Business logic (`engine.py`) is completely separated from the presentation layer (`app.py`), allowing seamless porting to alternative interfaces (e.g., FastAPI) without rewriting core RAG logic.
+* **Conversational Memory Condensing:** Implements a pre-processing LLM chain to rewrite ambiguous follow-up questions using session history, ensuring semantic search and firewalls never lose context.
+* **Cost-Defensive Firewalls:** Intercepts off-topic queries locally using structured output Intent Classification and L2 embedding distance checks. Unrelated inputs are rejected immediately, protecting cloud endpoints from infinite generation loops and off-topic billings.
 * **Non-Blocking Asynchronous I/O:** Every stage of the data pipeline utilizes native Python `asyncio` (`ainvoke`, `asimilarity_search_with_score`) to prevent database and LLM queries from blocking the server's single-threaded event loop under concurrent user loads.
-* **Cost-Defensive "Zero-Token Firewall":** Intercepts off-topic queries locally on the host CPU using an embedding distance check (Chroma's default L2 distance behavior). Unrelated inputs are rejected immediately, protecting cloud API endpoints from infinite generation loops and off-topic billings.
-* **Adversarial Hardening:** Uses tagged context enclosure markers and recency-biased security instructions to help mitigate prompt injection and persona-switching jailbreak attempts.
 
 ---
 
@@ -37,7 +37,7 @@ Modifying prayer positions (such as *Ruku* and *Sujud*) due to injury requires a
 * **Orchestration & UI:** LangChain Ecosystem, Chainlit (Asynchronous WebSockets)
 * **Vector Compute & Database:** ChromaDB (Persistent Disk Storage Layout)
 * **Local Embeddings:** Hugging Face `sentence-transformers/all-MiniLM-L6-v2` (CPU-Optimized)
-* **Cloud Inference:** Groq API Cloud Engine (`llama-3.3-70b-versatile`)
+* **Cloud Inference:** Groq API Cloud Engine (`llama-3.3-70b-versatile` & `llama-3-8b` for fast classification)
 * **Observability:** Centralized Native Python Logging (`logging` module wrapper)
 
 ---
@@ -46,40 +46,47 @@ Modifying prayer positions (such as *Ruku* and *Sujud*) due to injury requires a
 
 The workflow follows a deterministic, sequential security and retrieval pipeline:
 
-```
-[ User Input ]
+```text
+[ User Input + Session History ]
       │
       ▼
 ┌────────────────────────────────────────────────────────┐
-│ Phase 1: Zero-Token Firewall (Local CPU Check)         │
-│ - Computes an embedding distance score against local vectors │
-│ - IF best_score > threshold ──► [ Local Refusal Exit ]  │
+│ Phase 1: Context Condenser (Memory State)              │
+│ - Analyzes chat history via fast LLM pass              │
+│ - Rewrites ambiguous inputs into a Standalone Query    │
+└─────────────────────────┬──────────────────────────────┘
+                          │
+                          ▼
+┌────────────────────────────────────────────────────────┐
+│ Phase 2: Dual-Layer Safety Firewall                    │
+│ - Intent Classifier checks for medical/prayer overlap  │
+│ - CPU computes L2 vector distance against valid corpus │
+│ - IF invalid ──► [ Local Refusal Exit ]                │
 └─────────────────────────┬──────────────────────────────┘
                           │ (Passes Threshold)
                           ▼
 ┌────────────────────────────────────────────────────────┐
-│ Phase 2: Asynchronous Diverse Retrieval                │
-│ - Executes non-blocking similarity search against ChromaDB │
+│ Phase 3: Asynchronous Diverse Retrieval                │
+│ - Executes non-blocking similarity search via ChromaDB │
 │ - Isolates k=3 unique context chunks across data paths │
 └─────────────────────────┬──────────────────────────────┘
                           │
                           ▼
 ┌────────────────────────────────────────────────────────┐
-│ Phase 3: Hardened Prompt & Enclosure Assembly          │
-│ - Encloses raw source data within tagged context blocks (`<context>...</context>`) │
-│ - Attaches immutable persona & security directives     │
-└─────────────────────────┬──────────────────────────────┘
-                          │
-                          ▼
-┌────────────────────────────────────────────────────────┐
-│ Phase 4: Cloud Inference & Execution                  │
+│ Phase 4: Cloud Inference & Execution                   │
 │ - Dispatches execution payload to Groq (Llama 3.3 70B) │
 │ - Enforces max_tokens output caps for budget security  │
 └─────────────────────────┬──────────────────────────────┘
                           │
                           ▼
+┌────────────────────────────────────────────────────────┐
+│ Phase 5: Formatting & Output Guardrails                │
+│ - Validates terminal punctuation (prevents cutoff)     │
+│ - Appends mandatory Medical Disclaimer                 │
+└─────────────────────────┬──────────────────────────────┘
+                          │
+                          ▼
                 [ Streaming UI Response ]
-
 ```
 
 ---
@@ -88,28 +95,27 @@ The workflow follows a deterministic, sequential security and retrieval pipeline
 
 SujudSense applies explicit programmatic safety rules before and after LLM generation:
 
-- **Off-topic/jailbreak blocking:** queries containing blacklisted patterns such as `python script`, `medical advice`, `build a chatbot`, `surgeon`, `hack`, or `ignore previous instructions` are rejected immediately.
-- **Medical-term filtering:** inputs containing medical terms like `doctor`, `surgery`, `injury`, or `diagnosis` are blocked unless they also mention prayer-specific terms such as `sujud`, `ruku`, or `prayer`.
-- **Capability queries:** user questions like `what can you do?`, `who are you`, or `how can you help?` are handled safely and return a brief scope description rather than being sent to the LLM.
-- **Boundary refusals:** general informational queries (`what is`, `define`, `how many`, `why is`, `explain`) return a hard refusal phrase when the requested content is outside the available biomechanics/Fiqh context.
-- **Completeness enforcement:** generated answers are checked for final punctuation and a concise continuation is attempted if the response appears truncated.
-- **Medical safety notice:** when the response suggests physical prayer adjustments, the system appends a medical caution advising consultation with a healthcare professional for severe or worsening pain.
+- **Intent-Based Filtering:** Uses a structured-output LLM pass to classify the user's intent. If a query does not contain *both* a prayer-related context AND a medical/mobility context, it is safely rejected.
+- **Off-Topic/Jailbreak Blocking:** Queries containing blacklisted patterns (e.g., `python script`, `hack`, `ignore previous instructions`) are intercepted programmatically before reaching the reasoning chains.
+- **Capability Queries:** Questions like `what can you do?` or `how can you help?` bypass the LLM and return a hardcoded, safe scope description to save API compute costs.
+- **Completeness Enforcement:** Generated answers are checked for final punctuation; a concise continuation is attempted under-the-hood if the response appears truncated due to token limits.
+- **Medical Safety Notice:** When the response suggests physical prayer adjustments, the system explicitly appends a medical caution advising consultation with a healthcare professional for severe or worsening pain.
 
 ---
 
 ## 📂 Repository Structure
 
-```
+```text
 ├── app.py              # Presentation Layer: Manages WebSocket sessions and UI rendering
-├── engine.py           # Service Layer: Handles RAG orchestration, database queries, and firewalling
+├── engine.py           # Service Layer: Handles conversational state, RAG orchestration, and firewalls
 ├── config.py           # Configuration Layer: Environment variable resolution and type-safe defaults
+├── safety.py           # Security Layer: Hardcoded policies, intent schema, and blocklists
 ├── logger.py           # Telemetry Layer: Centralized, environment-toggled application logger
 ├── chainlit.md         # Application entry view and user welcome screen
 ├── data/               # Ground-Truth Knowledge Base (Immutable Source Text)
 │   ├── biomechanics.txt# Structured orthopedic and athletic movement constraints
 │   └── fiqh.txt        # Canonical jurisprudential modification rulings
 └── pyproject.toml      # Deterministic project metadata and dependencies
-
 ```
 
 ---
@@ -125,7 +131,7 @@ The system architecture relies entirely on twelve-factor configuration practices
 | `LLM_MAX_TOKENS` | `512` | Output response limit protecting against token drain |
 | `LLM_TEMPERATURE` | `0.1` | Low temperature variable ensuring highly deterministic generation |
 | `RETRIEVAL_K` | `3` | Number of context documents passed to the compilation prompt |
-| `CHROMA_PERSIST_DIR` | `./chroma_db` | Disk directory mapping for the "Init-Once, Load-Many" persistent layer |
+| `CHROMA_PERSIST_DIR` | `./chroma_db` | Disk directory mapping for the persistent storage layer |
 
 ---
 
@@ -138,14 +144,12 @@ Ensure Python 3.12+ is active. Set your cloud inference token via your terminal 
 ```bash
 export GROQ_API_KEY="your-production-api-key-here"
 export LOG_LEVEL="INFO"
-
 ```
 
 ### 2. Install Project Core Dependencies
 
 ```bash
 pip install chainlit chromadb langchain langchain-classic langchain-community langchain-groq langchain-huggingface sentence-transformers
-
 ```
 
 ### 3. Launching the App
@@ -154,7 +158,6 @@ Run the local serving loop with the hot-reload watch flag active:
 
 ```bash
 chainlit run app.py -w
-
 ```
 
 ### 4. Codebase Telemetry & Performance Auditing
@@ -166,44 +169,20 @@ export LOG_LEVEL=DEBUG
 chainlit run app.py
 ```
 
+---
+
 ## 🚀 Hugging Face Spaces Deployment
 
-This project can be deployed as a Hugging Face Space using Docker.
+This project is fully containerized and can be deployed natively as a Hugging Face Space using the Docker SDK.
 
-### Recommended Hugging Face Space setup
-
-1. Create a new Space on Hugging Face using the Docker SDK type.
+1. Create a new Space on Hugging Face using the **Docker** SDK type (Choose the **Blank** template).
 2. Add the Space repository as a git remote in your local repo:
-
-```bash
-git remote add hf https://huggingface.co/spaces/<your-username>/sujudsense
+   ```bash
+   git remote add hf https://huggingface.co/spaces/<your-username>/sujudsense
 ```
-
 3. Push your current branch to the HF remote:
-
-```bash
+   ```bash
 git push hf main
 ```
-
-4. Configure required secrets in the Space settings:
-
-- `GROQ_API_KEY`
-- `HF_TOKEN` (optional, only if you need authenticated HF Hub access)
-
-### Spaces configuration
-
-You can provide deployment metadata through README.
-
-Example:
-
-```yaml
-sdk: docker
-title: SujudSense
-emoji: "📉"
-colorFrom: "red"
-colorTo: "pink"
-pinned: false
-```
-
-For more configuration options, see:
-https://huggingface.co/docs/hub/spaces-config-reference
+4. Configure required secrets in the Space settings UI:
+   - `GROQ_API_KEY`
