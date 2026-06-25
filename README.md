@@ -26,6 +26,7 @@ Modifying prayer positions due to injury requires a highly delicate balance betw
 ### Key Engineering Highlights
 
 * **Decoupled Service-Layer Pattern:** Business logic (`engine.py`) is completely separated from the presentation layer (`app.py`), allowing seamless porting to alternative interfaces (e.g., FastAPI) without rewriting core RAG logic.
+* **Heavy/Fast LLM Split Routing:** Optimizes latency and API costs by routing simple classification and memory-condensation tasks to a lightning-fast 8B model, reserving the heavy 70B model strictly for final Fiqh/Biomechanics synthesis.
 * **Conversational Memory Condensing:** Implements a pre-processing LLM chain to rewrite ambiguous follow-up questions using session history, ensuring semantic search and firewalls never lose context.
 * **Cost-Defensive Firewalls:** Intercepts off-topic queries locally using structured output Intent Classification and L2 embedding distance checks. Unrelated inputs are rejected immediately, protecting cloud endpoints from infinite generation loops and off-topic billings.
 * **Non-Blocking Asynchronous I/O:** Every stage of the data pipeline utilizes native Python `asyncio` (`ainvoke`, `asimilarity_search_with_score`) to prevent database and LLM queries from blocking the server's single-threaded event loop under concurrent user loads.
@@ -37,7 +38,9 @@ Modifying prayer positions due to injury requires a highly delicate balance betw
 * **Orchestration & UI:** LangChain Ecosystem, Chainlit (Asynchronous WebSockets)
 * **Vector Compute & Database:** ChromaDB (Persistent Disk Storage Layout)
 * **Local Embeddings:** Hugging Face `sentence-transformers/all-MiniLM-L6-v2` (CPU-Optimized)
-* **Cloud Inference:** Groq API Cloud Engine (`llama-3.3-70b-versatile` & `llama-3-8b` for fast classification)
+* **Cloud Inference:** Groq API Cloud Engine 
+  * *Fast Routing/Memory:* `llama-3.1-8b-instant`
+  * *Heavy Synthesis:* `llama-3.3-70b-versatile`
 * **Observability:** Centralized Native Python Logging (`logging` module wrapper)
 
 ---
@@ -52,14 +55,14 @@ The workflow follows a deterministic, sequential security and retrieval pipeline
       ▼
 ┌────────────────────────────────────────────────────────┐
 │ Phase 1: Context Condenser (Memory State)              │
-│ - Analyzes chat history via fast LLM pass              │
+│ - Analyzes history via Fast LLM (Llama 3 8B)           │
 │ - Rewrites ambiguous inputs into a Standalone Query    │
 └─────────────────────────┬──────────────────────────────┘
                           │
                           ▼
 ┌────────────────────────────────────────────────────────┐
 │ Phase 2: Dual-Layer Safety Firewall                    │
-│ - Intent Classifier checks for medical/prayer overlap  │
+│ - Fast LLM checks for medical/prayer overlap           │
 │ - CPU computes L2 vector distance against valid corpus │
 │ - IF invalid ──► [ Local Refusal Exit ]                │
 └─────────────────────────┬──────────────────────────────┘
@@ -74,7 +77,7 @@ The workflow follows a deterministic, sequential security and retrieval pipeline
                           ▼
 ┌────────────────────────────────────────────────────────┐
 │ Phase 4: Cloud Inference & Execution                   │
-│ - Dispatches execution payload to Groq (Llama 3.3 70B) │
+│ - Dispatches execution payload to Heavy LLM (70B)      │
 │ - Enforces max_tokens output caps for budget security  │
 └─────────────────────────┬──────────────────────────────┘
                           │
@@ -128,6 +131,8 @@ The system architecture relies entirely on twelve-factor configuration practices
 | --- | --- | --- |
 | `LOG_LEVEL` | `INFO` | Toggles telemetry output verbosity (`DEBUG` or `INFO`) |
 | `FIREWALL_THRESHOLD` | `1.4` | Calibrated semantic distance cap for off-topic query rejection |
+| `HEAVY_LLM_MODEL` | `llama-3.3-70b-versatile` | Model used for final RAG synthesis and reasoning |
+| `FAST_LLM_MODEL` | `llama-3.1-8b-instant` | Model used for low-latency routing and context condensing |
 | `LLM_MAX_TOKENS` | `512` | Output response limit protecting against token drain |
 | `LLM_TEMPERATURE` | `0.1` | Low temperature variable ensuring highly deterministic generation |
 | `RETRIEVAL_K` | `3` | Number of context documents passed to the compilation prompt |
@@ -177,12 +182,12 @@ This project is fully containerized and can be deployed natively as a Hugging Fa
 
 1. Create a new Space on Hugging Face using the **Docker** SDK type (Choose the **Blank** template).
 2. Add the Space repository as a git remote in your local repo:
-   ```bash
-   git remote add hf https://huggingface.co/spaces/<your-username>/sujudsense
-```
+```bash
+   git remote add hf [https://huggingface.co/spaces/](https://huggingface.co/spaces/)<your-username>/sujudsense
+   ```
 3. Push your current branch to the HF remote:
-   ```bash
-git push hf main
-```
+```bash
+   git push hf main
+   ```
 4. Configure required secrets in the Space settings UI:
    - `GROQ_API_KEY`

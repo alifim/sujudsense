@@ -6,11 +6,12 @@
 
 ## How to Use This App
 
-Simply describe your physical limitation or pain, and the assistant will provide an ergonomically sound adjustment backed by established Fiqh. 
+Simply describe your physical limitation or pain, and the assistant will provide an ergonomically sound adjustment backed by established Fiqh. The app features conversational memory, so you can ask follow-up questions naturally!
 
 **Try asking:**
 * *"I have sharp knee pain when bending fully. How should I modify my Sujud?"*
-* *"My lower back hurts. I can't do ruku properly. What should I do?"*
+* *"My lower back hurts. I can't do ruku properly."*
+* *(Follow-up)*: *"What if I also feel it in my shoulders?"*
 
 *(Note: The system is strictly scoped. If you ask a purely medical diagnosis question or a general off-topic question, the safety firewall will respectfully decline to answer.)*
 
@@ -18,11 +19,12 @@ Simply describe your physical limitation or pain, and the assistant will provide
 
 ## 🛠️ For Developers
 
-SujudSense demonstrates an enterprise-grade, deterministic **Retrieval-Augmented Generation (RAG)** architecture designed to prevent hallucinations and API token-bleeding.
+SujudSense demonstrates an enterprise-grade, deterministic **Retrieval-Augmented Generation (RAG)** architecture designed to prevent hallucinations, token-bleeding, and context-loss.
 
-* **The Engine:** Built with LangChain, using a Groq inference backend (`llama-3.3-70b-versatile`).
-* **The Vector Store:** ChromaDB with Hugging Face local CPU embeddings (`sentence-transformers/all-MiniLM-L6-v2`).
-* **The Safety Layer:** Implements a programmatic "Zero-Token Firewall" that calculates L2 vector distance to intercept and drop off-topic or jailbreak queries locally *before* they reach the cloud LLM.
+* **The Engine:** Built with LangChain, utilizing Groq for high-speed inference (`llama-3.3-70b-versatile`).
+* **Conversational Memory:** Implements a Context Condenser chain to rewrite ambiguous follow-up queries using session history, ensuring firewalls never lose context.
+* **Dual-Layer Safety Firewall:** Uses a fast structured-output Intent Classifier (`llama-3.1-8b-instant`) paired with a local CPU vector distance check (L2) to drop off-topic or jailbreak queries *before* they reach the main reasoning chain.
+* **The Vector Store:** Persistent ChromaDB with Hugging Face local CPU embeddings (`sentence-transformers/all-MiniLM-L6-v2`).
 * **The UI:** Asynchronous WebSocket streaming via Chainlit. 
 
 💻 **[View the full decoupled architecture on GitHub](https://github.com/alifim/sujudsense)**
