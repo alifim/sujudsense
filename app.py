@@ -70,30 +70,31 @@ async def setup_chat():
 
 @cl.on_message
 async def handle_query(message: cl.Message):
-    """Passes user input to the engine and returns the response asynchronously."""
     engine = cl.user_session.get("engine")
-    if engine is None:
-        engine = await get_engine()
-        cl.user_session.set("engine", engine)
+    chat_history = cl.user_session.get("chat_history") or []
+    
+    if not engine:
+        await cl.Message(content="Session expired. Please refresh.").send()
+        return
 
-    msg = cl.Message(content="Analyzing...")
+    msg = cl.Message(content="Analyzing context...")
     await msg.send()
 
     try:
-        # 1. Non-blocking Firewall Check
-        is_safe = await engine.check_firewall(message.content)
-        if not is_safe:
-            logger.info(f"Firewall blocked query: '{message.content}'")
-            msg.content = "I am SujudSense, specialized exclusively in prayer biomechanics and Fiqh. I cannot assist with off-topic conversations."
-            await msg.update()
-            return
-
-        # 2. Non-blocking LLM Generation
-        answer = await engine.generate_response(message.content)
+        # One single call handles rewriting, firewalls, and generation
+        answer = await engine.generate_response(message.content, chat_history)
+        
+        # Update State
+        from langchain_core.messages import HumanMessage, AIMessage
+        chat_history.extend([
+            HumanMessage(content=message.content),
+            AIMessage(content=answer)
+        ])
+        cl.user_session.set("chat_history", chat_history)
         msg.content = answer
         await msg.update()
 
     except Exception as e:
-        logger.error(f"Query processing failed: {str(e)}", exc_info=True)
+        logger.error(f"Processing failed: {str(e)}", exc_info=True)
         msg.content = "An error occurred while analyzing your request."
         await msg.update()

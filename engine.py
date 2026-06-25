@@ -7,9 +7,10 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 from langchain_groq import ChatGroq
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_classic.chains import create_retrieval_chain
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_classic.chains import create_retrieval_chain
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import Runnable
 
 from config import config
@@ -23,7 +24,7 @@ class SujudSenseEngine:
         self.retriever: Optional[Runnable] = None
 
     async def initialize(self):
-        """Asynchronously sets up the RAG assets. Safe to call on startup."""
+        """Asynchronously sets up the RAG assets."""
         logger.info("Bootstrapping SujudSenseEngine...")
         embeddings = HuggingFaceEmbeddings(model_name=config.embedding_model)
 
@@ -56,14 +57,26 @@ class SujudSenseEngine:
         logger.info("Engine initialization complete.")
 
     def _build_chain(self):
-        # 1. The fast classifier (use a smaller, faster model if available, like Llama-3-8b)
-        classifier_llm = ChatGroq(
-            model=config.llm_model, 
-            temperature=0, # Temperature 0 is crucial for deterministic classification
-        )
-        self.intent_classifier = classifier_llm.with_structured_output(QueryIntent)
+        # Temperature 0 is crucial for deterministic classification and rewriting
+        deterministic_llm = ChatGroq(model=config.llm_model, temperature=0)
+        
+        # 1. The Intent Classifier
+        self.intent_classifier = deterministic_llm.with_structured_output(QueryIntent)
 
-        # 2. Your main generator (simplified, because it trusts the classifier)
+        # 2. The Contextual Condenser (Query Rewriter)
+        condense_system = (
+            "Given a chat history and the latest user question which might reference context in the chat history, "
+            "formulate a standalone question which can be understood without the chat history. "
+            "Do NOT answer the question, just reformulate it if needed and otherwise return it as is."
+        )
+        condense_prompt = ChatPromptTemplate.from_messages([
+            ("system", condense_system),
+            MessagesPlaceholder("chat_history"),
+            ("human", "{input}"),
+        ])
+        self.condenser_chain = condense_prompt | deterministic_llm | StrOutputParser()
+
+        # 3. Main Generator (No history placeholder needed here because the query is already condensed)
         system_prompt = (
             "You are SujudSense, an AI coaching agent specializing in prayer posture adjustments for physical ailments.\n"
             "You can assume the user has already mentioned a physical limitation. "
@@ -87,88 +100,72 @@ class SujudSenseEngine:
         combine_docs_chain = create_stuff_documents_chain(llm, prompt)
         self.rag_chain = create_retrieval_chain(self.retriever, combine_docs_chain)
 
-    async def check_firewall(self, query: str) -> bool:
-        """
-        Executes an async distance check.
-        Returns True if the query is safe/on-topic, False if off-topic.
-        """
-        if self.vector_store is None:
-            raise RuntimeError("Vector store is not initialized")
 
-        if SafetyPolicy.should_provide_capability_response(query):
-            logger.debug(f"Firewall Check | Capability query allowed | Query: '{query}'")
-            return True
+    async def generate_response(self, query: str, chat_history: list) -> str:
+        """Fully asynchronous execution integrating rewriting, firewalls, and generation."""
+        if self.retriever is None or self.rag_chain is None or self.vector_store is None:
+            raise RuntimeError("Engine assets are not fully initialized")
 
-        if SafetyPolicy.should_block(query):
-            logger.debug(f"Firewall Check | Off-topic block detected | Query: '{query}'")
-            return False
-
-        raw_results = await self.vector_store.asimilarity_search_with_score(query, k=1)
-        if raw_results:
-            _, best_score = raw_results[0]
-            logger.debug(f"Firewall Check | Score: {best_score:.4f} | Query: '{query}'")
-            if best_score > config.firewall_threshold:
-                return False
-        return True
-
-    async def generate_response(self, query: str) -> str:
-        """Fully asynchronous execution of the retrieval and generation chain."""
-        if self.retriever is None or self.rag_chain is None:
-            raise RuntimeError("Retrieval chain is not initialized")
-
-        # 1. Check your hardcoded safety policies first
+        # 1. Hardcoded Fast-Pass Checks (On Raw Query)
         if SafetyPolicy.should_block(query):
             return SafetyPolicy.JAILBREAK_PHRASE
-
         if SafetyPolicy.should_provide_capability_response(query):
             return SafetyPolicy.GENERAL_CAPABILITY_RESPONSE
 
-        # 2. The LLM Firewall Check
+        # 2. Condense the Query (Memory Injection)
+        if chat_history:
+            standalone_query = await self.condenser_chain.ainvoke({
+                "chat_history": chat_history,
+                "input": query
+            })
+            logger.debug(f"Rewritten Standalone Query: '{standalone_query}'")
+        else:
+            standalone_query = query
+
+        # 3. The L2 Vector Firewall (On Standalone Query)
+        raw_results = await self.vector_store.asimilarity_search_with_score(standalone_query, k=1)
+        if raw_results:
+            _, best_score = raw_results[0]
+            logger.debug(f"Firewall Check | Score: {best_score:.4f}")
+            if best_score > config.firewall_threshold:
+                return SafetyPolicy.REFUSAL_PHRASE
+
+        # 4. The Intent Classifier Firewall (On Standalone Query)
         try:
-            # We use cast() to satisfy the static type checker
-            intent = cast(QueryIntent, await self.intent_classifier.ainvoke(query))
+            intent = cast(QueryIntent, await self.intent_classifier.ainvoke(standalone_query))
             logger.debug(f"Intent Classification: {intent.model_dump()}")
             
-            if not intent.is_prayer_related:
+            if not intent.is_prayer_related or not intent.has_medical_or_mobility_context:
                 return SafetyPolicy.REFUSAL_PHRASE
-                
-            if not intent.has_medical_or_mobility_context:
-                return SafetyPolicy.REFUSAL_PHRASE
-            
         except Exception as e:
             logger.warning(f"Intent classification failed, falling back to safe refusal: {e}")
             return SafetyPolicy.REFUSAL_PHRASE
 
+        # 5. RAG Execution
         if logger.isEnabledFor(logging.DEBUG):
-            # Using ainvoke to prevent event loop blocking during debug trace
-            docs = await self.retriever.ainvoke(query)
+            docs = await self.retriever.ainvoke(standalone_query)
             for i, doc in enumerate(docs):
                 logger.debug(f"Retrieved Chunk {i+1}: {doc.page_content[:100]}...")
 
-        response = await self.rag_chain.ainvoke({"input": query})
+        response = await self.rag_chain.ainvoke({"input": standalone_query})
         answer = (response.get("answer") or "").strip()
 
-        # If the LLM response ends abruptly or lacks terminal punctuation, attempt one concise continuation.
+        # Continuation check for abruptly cut off outputs
         truncated_indicators = ("adjust your", "you may need to adjust", "adjust", "to adjust")
-        needs_continuation = (not answer or answer[-1] not in ".!?" or answer.strip().lower().endswith(truncated_indicators))
-
-        if needs_continuation:
+        if not answer or answer[-1] not in ".!?" or answer.lower().endswith(truncated_indicators):
             try:
                 cont_prompt = f"Please continue the previous answer concisely. Previous: {answer}"
                 cont_resp = await self.rag_chain.ainvoke({"input": cont_prompt})
                 cont = (cont_resp.get("answer") or "").strip()
                 if cont:
-                    if not answer.endswith((" ", "\n")):
-                        answer = answer + " "
-                    answer = (answer + cont).strip()
+                    answer = f"{answer} {cont}".strip()
             except Exception as e:
                 logger.debug(f"Continuation attempt failed: {e}")
 
-        # Ensure final punctuation
         if answer and answer[-1] not in ".!?":
-            answer = answer + "."
+            answer += "."
 
-        # Append medical notice when the response suggests physical modifications.
+        # Append medical notice
         physical_terms = ("knee", "back", "sujud", "ruku", "shoulder", "pain", "injury")
         if any(term in answer.lower() for term in physical_terms):
             if SafetyPolicy.MEDICAL_NOTICE.lower() not in answer.lower():
