@@ -38,8 +38,8 @@ Modifying prayer positions due to injury requires a highly delicate balance betw
 * **Vector Compute & Database:** ChromaDB (Persistent Disk Storage Layout)
 * **Local Embeddings:** Hugging Face `sentence-transformers/all-MiniLM-L6-v2` (CPU-Optimized)
 * **Cloud Inference:** Groq API Cloud Engine 
-  * *Routing/Memory:* `llama-3.3-70b-versatile`
-  * *Synthesis:* `llama-3.3-70b-versatile`
+  * *Routing, Memory, & Synthesis:* `llama-3.3-70b-versatile`
+* **Telemetry & Analytics:** Google Analytics (GA4 client injection via `public/analytics.js`)
 * **Observability:** Centralized Native Python Logging (`logging` module wrapper)
 
 ---
@@ -54,14 +54,14 @@ The workflow follows a deterministic, sequential security and retrieval pipeline
       ▼
 ┌────────────────────────────────────────────────────────┐
 │ Phase 1: Context Condenser (Memory State)              │
-│ - Analyzes history via LLM           │
+│ - Analyzes history via LLM                             │
 │ - Rewrites ambiguous inputs into a Standalone Query    │
 └─────────────────────────┬──────────────────────────────┘
                           │
                           ▼
 ┌────────────────────────────────────────────────────────┐
 │ Phase 2: Dual-Layer Safety Firewall                    │
-│ - LLM checks for medical/prayer overlap           │
+│ - LLM checks for medical/prayer overlap                │
 │ - CPU computes L2 vector distance against valid corpus │
 │ - IF invalid ──► [ Local Refusal Exit ]                │
 └─────────────────────────┬──────────────────────────────┘
@@ -76,8 +76,8 @@ The workflow follows a deterministic, sequential security and retrieval pipeline
                           ▼
 ┌────────────────────────────────────────────────────────┐
 │ Phase 4: Cloud Inference & Execution                   │
-│ - Dispatches execution payload to LLM      │
-│ - Enforces max_tokens output caps for budget security  │
+│ - Dispatches execution payload to LLM                  │
+│ - Enforces strict 512 token headrooms to block loops   │
 └─────────────────────────┬──────────────────────────────┘
                           │
                           ▼
@@ -100,7 +100,7 @@ SujudSense applies explicit programmatic safety rules before and after LLM gener
 - **Intent-Based Filtering:** Uses a structured-output LLM pass to classify the user's intent. If a query does not contain *both* a prayer-related context AND a medical/mobility context, it is safely rejected.
 - **Off-Topic/Jailbreak Blocking:** Queries containing blacklisted patterns (e.g., `python script`, `hack`, `ignore previous instructions`) are intercepted programmatically before reaching the reasoning chains.
 - **Capability Queries:** Questions like `what can you do?` or `how can you help?` bypass the LLM and return a hardcoded, safe scope description to save API compute costs.
-- **Completeness Enforcement:** Generated answers are checked for final punctuation; a concise continuation is attempted under-the-hood if the response appears truncated due to token limits.
+- **Completeness Enforcement:** Output payloads are systematically formatted with structural headings (`Anatomical Cue` and `Fiqh Validation`). Generation lengths are explicitly capped at `512` tokens.
 - **Medical Safety Notice:** When the response suggests physical prayer adjustments, the system explicitly appends a medical caution advising consultation with a healthcare professional for severe or worsening pain.
 
 ---
@@ -114,6 +114,10 @@ SujudSense applies explicit programmatic safety rules before and after LLM gener
 ├── safety.py           # Security Layer: Hardcoded policies, intent schema, and blocklists
 ├── logger.py           # Telemetry Layer: Centralized, environment-toggled application logger
 ├── chainlit.md         # Application entry view and user welcome screen
+├── public/
+│   └── analytics.js    # Client-side Google Analytics (GA4) injection script
+├── .chainlit/
+│   └── config.toml     # Chainlit UI setup linking custom JS assets
 ├── data/               # Ground-Truth Knowledge Base (Immutable Source Text)
 │   ├── biomechanics.txt# Structured orthopedic and athletic movement constraints
 │   └── fiqh.txt        # Canonical jurisprudential modification rulings
@@ -181,11 +185,11 @@ This project is fully containerized and can be deployed natively as a Hugging Fa
 
 1. Create a new Space on Hugging Face using the **Docker** SDK type (Choose the **Blank** template).
 2. Add the Space repository as a git remote in your local repo:
-```bash
+   ```bash
    git remote add hf [https://huggingface.co/spaces/](https://huggingface.co/spaces/)<your-username>/sujudsense
    ```
 3. Push your current branch to the HF remote:
-```bash
+   ```bash
    git push hf main
    ```
 4. Configure required secrets in the Space settings UI:
