@@ -25,6 +25,7 @@ SujudSense demonstrates an enterprise-grade, deterministic **Retrieval-Augmented
 * **Conversational Memory:** Implements a Context Condenser chain to rewrite ambiguous follow-up queries using session history, ensuring firewalls never lose context.
 * **Dual-Layer Safety Firewall:** Uses a structured-output Intent Classifier (`llama-3.3-70b-versatile`) paired with a local CPU vector distance check (L2) to drop off-topic or jailbreak queries *before* they reach the main reasoning chain.
 * **The Vector Store:** Persistent ChromaDB with Hugging Face local CPU embeddings (`sentence-transformers/all-MiniLM-L6-v2`).
+* **Telemetry & Analytics:** Integrated client-side Google Analytics (GA4) telemetry injected natively via `.chainlit/config.toml` and custom JavaScript to track live user interactions seamlessly across Hugging Face iframe boundaries.
 * **The UI:** Asynchronous WebSocket streaming via Chainlit. 
 
 💻 **[View the full decoupled architecture on GitHub](https://github.com/alifim/sujudsense)**
