@@ -48,50 +48,20 @@ Modifying prayer positions due to injury requires a highly delicate balance betw
 
 ## 📐 System Architecture
 
-The workflow follows a deterministic, sequential security and retrieval pipeline:
+The workflow follows a deterministic, sequential security and retrieval pipeline. To prevent LLM hallucinations and medical misdirection, the system relies on strict intent classification and programmatic loops before returning any response to the user.
 
-```text
-[ User Input + Session History ]
-      │
-      ▼
-┌────────────────────────────────────────────────────────┐
-│ Phase 1: Context Condenser (Memory State)              │
-│ - Analyzes history via LLM                             │
-│ - Rewrites ambiguous inputs into a Standalone Query    │
-└─────────────────────────┬──────────────────────────────┘
-                          │
-                          ▼
-┌────────────────────────────────────────────────────────┐
-│ Phase 2: Dual-Layer Safety Firewall                    │
-│ - LLM checks for medical/prayer overlap                │
-│ - CPU computes L2 vector distance against valid corpus │
-│ - IF invalid ──► [ Local Refusal Exit ]                │
-└─────────────────────────┬──────────────────────────────┘
-                          │ (Passes Threshold)
-                          ▼
-┌────────────────────────────────────────────────────────┐
-│ Phase 3: Asynchronous Diverse Retrieval                │
-│ - Executes non-blocking similarity search via ChromaDB │
-│ - Isolates k=3 unique context chunks across data paths │
-└─────────────────────────┬──────────────────────────────┘
-                          │
-                          ▼
-┌────────────────────────────────────────────────────────┐
-│ Phase 4: Cloud Inference & Execution                   │
-│ - Dispatches execution payload to LLM                  │
-│ - Enforces strict 512 token headrooms to block loops   │
-└─────────────────────────┬──────────────────────────────┘
-                          │
-                          ▼
-┌────────────────────────────────────────────────────────┐
-│ Phase 5: Formatting & Output Guardrails                │
-│ - Validates terminal punctuation (prevents cutoff)     │
-│ - Appends mandatory Medical Disclaimer                 │
-└─────────────────────────┬──────────────────────────────┘
-                          │
-                          ▼
-                [ Streaming UI Response ]
-```
+### Flowchart
+![SujudSense Logical Flowchart](./assets/flowchart.png)
+
+1. **Data Preparation:** Reference documents are split into smaller chunks, embedded, and stored securely in a vector database.
+2. **Initial Safety Check:** When a user submits a query, the system first checks for off-topic or jailbreak phrases. If any are found, the request is refused.
+3. **Query Rewrite:** The system uses the ongoing chat history to rewrite the user's input into a single, standalone question.
+4. **Relevance Check:** It verifies if the standalone question matches the topics stored in the database. If it is off-topic, the request is refused.
+5. **Intent Classification:** The system evaluates the core intent of the question. To proceed, the question must contain *both* an Islamic prayer intent and a medical intent.
+6. **Document Retrieval:** If the question passes all filters, the system searches the database and retrieves the top 3 most relevant document chunks.
+7. **Context Creation:** The system combines the user's question, the retrieved documents, and the system prompt to build the context.
+8. **Answer Generation:** The combined context is sent to the LLM API to generate a response.
+9. **Completeness Check:** The system verifies if the generated answer is complete. If it is cut off, it makes an additional call to the LLM API to finish the response before returning the final answer to the user.
 
 ---
 
