@@ -105,7 +105,7 @@ class SafetyPolicy:
         return any(term in query_lower for term in cls.PRAYER_TERMS)
 
     @classmethod
-    def is_off_topic(cls, query: str) -> bool:
+    def should_block(cls, query: str) -> bool:
         query_lower = query.lower()
         if any(pattern in query_lower for pattern in cls.OFF_TOPIC_PATTERNS):
             return True
@@ -114,14 +114,6 @@ class SafetyPolicy:
         return False
 
     @classmethod
-    def is_capability_query(cls, query: str) -> bool:
+    def should_provide_capability_response(cls, query: str) -> bool:
         query_lower = query.lower()
         return any(pattern in query_lower for pattern in cls.GENERAL_CAPABILITY_PATTERNS)
-
-    @classmethod
-    def should_block(cls, query: str) -> bool:
-        return cls.is_off_topic(query)
-
-    @classmethod
-    def should_provide_capability_response(cls, query: str) -> bool:
-        return cls.is_capability_query(query)
