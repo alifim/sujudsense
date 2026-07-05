@@ -9,6 +9,8 @@ pinned: false
 
 # SujudSense
 
+![til](./assets/sujudsense_demo.gif)
+
 SujudSense is an AI-powered coaching assistant designed to help Muslims safely adapt their prayer postures (like Ruku and Sujud) when dealing with physical injuries, joint pain, or mobility limitations.
 
 When modifying prayer movements, worshippers face a unique challenge: they must balance physical safety (sports biomechanics) with canonical validity (Islamic jurisprudence or Fiqh). Standard AI chatbots are dangerous for this—they frequently hallucinate medical diagnoses or invent religious exceptions that do not exist.
