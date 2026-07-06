@@ -63,6 +63,22 @@ The workflow follows a deterministic, sequential security and retrieval pipeline
 8. **Answer Generation:** The combined context is sent to the LLM API to generate a response.
 9. **Completeness Check:** The system verifies if the generated answer is complete. If it is cut off, it makes an additional call to the LLM API to finish the response before returning the final answer to the user.
 
+### Infrastructure & Deployment
+
+The system is containerized and deployed on the cloud to ensure reliable access and fast processing.
+
+![SujudSense Infrastructure Diagram](./assets/architecture.png)
+
+1. **Code Hosting:** The AI Engineer pushes the application source code to the GitHub repository.
+2. **Cloud Deployment:** The application is deployed as a Docker container into Hugging Face Spaces.
+3. **Model Download:** The embedding model pulls the required files directly from Hugging Face Models.
+4. **Database Storage:** The embedding model processes the reference documents and stores them in ChromaDB.
+5. **User Access:** The user interacts with the application through the Chainlit UI (with usage tracked by Google Analytics).
+6. **Data Retrieval:** The LangChain Engine searches ChromaDB and retrieves the information needed to answer the user's question.
+7. **Answer Generation:** The LangChain Engine sends the retrieved information and the user's question to the Groq API to generate the response.
+8. **UI Delivery:** The LangChain Engine sends the final generated answer back to the Chainlit UI to be displayed to the user.
+9. **Web Analytics:** The web traffic data is captured and monitored using Google Analytics platform. 
+
 ---
 
 ## 🛡️ Safety and Response Rules
