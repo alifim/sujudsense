@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Optional, cast
+from typing import Optional, cast, Any, Dict
 
 from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -31,8 +31,8 @@ class SujudSenseEngine:
         if os.path.exists(config.persist_directory) and os.listdir(config.persist_directory):
             logger.info("Loading existing vector store from disk.")
             self.vector_store = Chroma(
-                persist_directory=config.persist_directory, 
-                embedding_function=embeddings
+                persist_directory=config.persist_directory,
+                embedding_function=embeddings,
             )
         else:
             logger.info("Building new vector store...")
@@ -41,20 +41,81 @@ class SujudSenseEngine:
                 docs.extend(TextLoader(path).load())
 
             text_splitter = RecursiveCharacterTextSplitter(
-                chunk_size=config.chunk_size, 
-                chunk_overlap=config.chunk_overlap
+                chunk_size=config.chunk_size,
+                chunk_overlap=config.chunk_overlap,
             )
             chunks = text_splitter.split_documents(docs)
 
             self.vector_store = Chroma.from_documents(
-                documents=chunks, 
-                embedding=embeddings, 
-                persist_directory=config.persist_directory
+                documents=chunks,
+                embedding=embeddings,
+                persist_directory=config.persist_directory,
             )
 
         self.retriever = self.vector_store.as_retriever(search_kwargs={"k": config.retrieval_k})
         self._build_chain()
         logger.info("Engine initialization complete.")
+
+    def _ensure_initialized(self) -> None:
+        if self.retriever is None or self.rag_chain is None or self.vector_store is None:
+            logger.error("Attempted execution before engine assets were initialized.")
+            raise RuntimeError("Engine assets are not fully initialized")
+
+    def is_blocked_by_hardcoded_policy(self, query: str) -> bool:
+        return SafetyPolicy.should_block(query)
+
+    def is_capability_query(self, query: str) -> bool:
+        return SafetyPolicy.should_provide_capability_response(query)
+
+    async def condense_query(self, query: str, chat_history: list) -> str:
+        if chat_history:
+            return await self.condenser_chain.ainvoke({
+                "chat_history": chat_history,
+                "input": query,
+            })
+        return query
+
+    async def vector_firewall_score(self, standalone_query: str) -> Optional[float]:
+        self._ensure_initialized()
+        assert self.vector_store is not None
+        raw_results = await self.vector_store.asimilarity_search_with_score(standalone_query, k=1)
+        if not raw_results:
+            return None
+        _, best_score = raw_results[0]
+        return best_score
+
+    async def vector_firewall_passes(self, standalone_query: str) -> bool:
+        score = await self.vector_firewall_score(standalone_query)
+        return score is None or score <= config.firewall_threshold
+
+    async def classify_intent(self, standalone_query: str) -> QueryIntent:
+        self._ensure_initialized()
+        return cast(QueryIntent, await self.intent_classifier.ainvoke(standalone_query))
+
+    async def intent_allows_query(self, standalone_query: str) -> bool:
+        intent = await self.classify_intent(standalone_query)
+        return intent.is_prayer_related and intent.has_medical_or_mobility_context
+
+    async def evaluate_stages(self, query: str, chat_history: list) -> Dict[str, Any]:
+        self._ensure_initialized()
+        hardcoded_block = self.is_blocked_by_hardcoded_policy(query)
+        capability_trigger = self.is_capability_query(query)
+        standalone_query = await self.condense_query(query, chat_history)
+        vector_score = await self.vector_firewall_score(standalone_query)
+        vector_pass = vector_score is None or vector_score <= config.firewall_threshold
+        intent = await self.classify_intent(standalone_query)
+        intent_pass = intent.is_prayer_related and intent.has_medical_or_mobility_context
+
+        return {
+            "raw_query": query,
+            "standalone_query": standalone_query,
+            "hardcoded_block": hardcoded_block,
+            "capability_trigger": capability_trigger,
+            "vector_score": vector_score,
+            "vector_pass": vector_pass,
+            "intent": intent.model_dump(),
+            "intent_pass": intent_pass,
+        }
 
     def _build_chain(self):
         # Temperature 0 is crucial for deterministic classification and rewriting
@@ -96,9 +157,9 @@ class SujudSenseEngine:
         ])
 
         llm = ChatGroq(
-            model=config.heavy_llm_model, 
-            temperature=config.heavy_llm_temperature, 
-            max_tokens=config.heavy_llm_max_tokens
+            model=config.heavy_llm_model,
+            temperature=config.heavy_llm_temperature,
+            max_tokens=config.heavy_llm_max_tokens,
         )
 
         combine_docs_chain = create_stuff_documents_chain(llm, prompt)
@@ -114,42 +175,33 @@ class SujudSenseEngine:
         logger.info(f"Incoming Request | History Depth: {len(chat_history)} | Raw Input: '{query}'")
 
         # 1. Hardcoded Fast-Pass Checks (On Raw Query)
-        if SafetyPolicy.should_block(query):
+        if self.is_blocked_by_hardcoded_policy(query):
             logger.warning(f"Security Alert | Hardcoded Policy Triggered | Blocked pattern in raw input: '{query}'")
             return SafetyPolicy.JAILBREAK_PHRASE
             
-        if SafetyPolicy.should_provide_capability_response(query):
+        if self.is_capability_query(query):
             logger.info("System Route | Capability request handled locally.")
             return SafetyPolicy.GENERAL_CAPABILITY_RESPONSE
 
         # 2. Condense the Query (Memory Injection)
-        if chat_history:
-            standalone_query = await self.condenser_chain.ainvoke({
-                "chat_history": chat_history,
-                "input": query
-            })
+        standalone_query = await self.condense_query(query, chat_history)
+        if standalone_query != query:
             logger.info(f"Memory Condenser | Rewrote to Standalone Query: '{standalone_query}'")
-        else:
-            standalone_query = query
 
         # 3. The L2 Vector Firewall (On Standalone Query)
-        raw_results = await self.vector_store.asimilarity_search_with_score(standalone_query, k=1)
-        if raw_results:
-            _, best_score = raw_results[0]
-            logger.debug(f"Firewall Check | Vector L2 Distance Score: {best_score:.4f}")
-            if best_score > config.firewall_threshold:
-                logger.warning(
-                    f"Firewall Block | L2 Distance Exceeded | Score: {best_score:.4f} > "
-                    f"Threshold: {config.firewall_threshold} | Standalone Query: '{standalone_query}'"
-                )
-                return SafetyPolicy.REFUSAL_PHRASE
+        if not await self.vector_firewall_passes(standalone_query):
+            score = await self.vector_firewall_score(standalone_query)
+            logger.warning(
+                f"Firewall Block | L2 Distance Exceeded | Score: {score:.4f} > "
+                f"Threshold: {config.firewall_threshold} | Standalone Query: '{standalone_query}'"
+            )
+            return SafetyPolicy.REFUSAL_PHRASE
 
         # 4. The Intent Classifier Firewall (On Standalone Query)
         try:
-            intent = cast(QueryIntent, await self.intent_classifier.ainvoke(standalone_query))
-            logger.debug(f"Intent Classification Metrics: {intent.model_dump()}")
-            
-            if not intent.is_prayer_related or not intent.has_medical_or_mobility_context:
+            if not await self.intent_allows_query(standalone_query):
+                intent = await self.classify_intent(standalone_query)
+                logger.debug(f"Intent Classification Metrics: {intent.model_dump()}")
                 logger.warning(
                     f"Firewall Block | Intent Mismatch | Prayer: {intent.is_prayer_related} | "
                     f"Medical: {intent.has_medical_or_mobility_context} | Standalone Query: '{standalone_query}'"
