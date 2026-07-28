@@ -236,7 +236,7 @@ def test_pipeline_stage(engine, query, stage, group):
         expected_map = {
             "both_true": (True, True),
             "prayer_only": (True, False),
-            "medical_only": (False, True),
+            "posture_or_mobility_only": (False, True),
             "neither": (False, False),
         }
         assert actual == expected_map[group], (

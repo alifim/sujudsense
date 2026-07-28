@@ -262,21 +262,21 @@
                 "expected_outcome": "intent_prayer_only"
             }
         ],
-        "medical_only": [
+        "posture_or_mobility_only": [
             {
-                "id": "medical_01",
-                "query": "What should I eat to reduce inflammation?",
-                "expected_outcome": "intent_medical_only"
+                "id": "mobility_01",
+                "query": "My lower back hurts sharply when I try to sit up straight at my desk.",
+                "expected_outcome": "intent_posture_mobility_only"
             },
             {
-                "id": "medical_02",
-                "query": "What are the symptoms of a torn meniscus?",
-                "expected_outcome": "intent_medical_only"
+                "id": "mobility_02",
+                "query": "I am recovering from ankle surgery and have limited dorsiflexion mobility.",
+                "expected_outcome": "intent_posture_mobility_only"
             },
             {
-                "id": "medical_03",
-                "query": "How should I manage arthritis pain in my knees?",
-                "expected_outcome": "intent_medical_only"
+                "id": "mobility_03",
+                "query": "I have a hard time bending my knees due to severe stiffness, what should I do?",
+                "expected_outcome": "intent_posture_mobility_only"
             }
         ],
         "neither": [
