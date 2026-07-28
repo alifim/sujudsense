@@ -84,17 +84,13 @@ class SujudSenseEngine:
         _, best_score = raw_results[0]
         return best_score
 
-    async def vector_firewall_passes(self, standalone_query: str) -> bool:
-        score = await self.vector_firewall_score(standalone_query)
-        return score is None or score <= config.firewall_threshold
-
     async def classify_intent(self, standalone_query: str) -> QueryIntent:
         self._ensure_initialized()
         return cast(QueryIntent, await self.intent_classifier.ainvoke(standalone_query))
 
     async def intent_allows_query(self, standalone_query: str) -> bool:
         intent = await self.classify_intent(standalone_query)
-        return intent.is_prayer_related and intent.has_medical_or_mobility_context
+        return intent.is_prayer_related and intent.has_postural_or_mobility_limitation
 
     async def evaluate_stages(self, query: str, chat_history: list) -> Dict[str, Any]:
         self._ensure_initialized()
@@ -104,7 +100,7 @@ class SujudSenseEngine:
         vector_score = await self.vector_firewall_score(standalone_query)
         vector_pass = vector_score is None or vector_score <= config.firewall_threshold
         intent = await self.classify_intent(standalone_query)
-        intent_pass = intent.is_prayer_related and intent.has_medical_or_mobility_context
+        intent_pass = intent.is_prayer_related and intent.has_postural_or_mobility_limitation
 
         return {
             "raw_query": query,
@@ -189,8 +185,8 @@ class SujudSenseEngine:
             logger.info(f"Memory Condenser | Rewrote to Standalone Query: '{standalone_query}'")
 
         # 3. The L2 Vector Firewall (On Standalone Query)
-        if not await self.vector_firewall_passes(standalone_query):
-            score = await self.vector_firewall_score(standalone_query)
+        score = await self.vector_firewall_score(standalone_query)
+        if score is not None and score > config.firewall_threshold:
             logger.warning(
                 f"Firewall Block | L2 Distance Exceeded | Score: {score:.4f} > "
                 f"Threshold: {config.firewall_threshold} | Standalone Query: '{standalone_query}'"
@@ -204,7 +200,7 @@ class SujudSenseEngine:
                 logger.debug(f"Intent Classification Metrics: {intent.model_dump()}")
                 logger.warning(
                     f"Firewall Block | Intent Mismatch | Prayer: {intent.is_prayer_related} | "
-                    f"Medical: {intent.has_medical_or_mobility_context} | Standalone Query: '{standalone_query}'"
+                    f"Medical: {intent.has_postural_or_mobility_limitation} | Standalone Query: '{standalone_query}'"
                 )
                 return SafetyPolicy.REFUSAL_PHRASE
         except Exception as e:
