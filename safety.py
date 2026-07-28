@@ -6,13 +6,13 @@ class QueryIntent(BaseModel):
     is_prayer_related: bool = Field(
         description="True if the query is about Islamic prayer positions like Sujud, Ruku, or Salah."
     )
-    has_medical_or_mobility_context: bool = Field(
+    has_postural_or_mobility_limitation: bool = Field(
         description=(
-            "True ONLY if the user explicitly mentions pain, injury, surgery, physical limitations, "
-            "or joint protection (e.g., 'hurts', 'aches', 'herniation', 'protect my hips'). "
-            "MUST BE FALSE for general posture goals, form checks, or 'how-to' tutorials "
-            "(e.g., 'keep my spine flat', 'proper way to bend', 'where do my elbows go') "
-            "UNLESS they explicitly state they are doing it to accommodate a specific pain or injury."
+            "True ONLY if the user is describing a physical bodily limitation, joint constraint, or biomechanical pain "
+            "that specifically affects their physical movement or mechanics (e.g., 'knees hurt when bending', 'back surgery recovery', 'hip immobility'). "
+            "MUST BE FALSE for general medical advice, dietary questions, or treatment plans (e.g., 'how to heal a torn ACL', 'foods for inflammation'). "
+            "MUST BE FALSE for unrelated tasks, coding, or AI roleplay that happen to mention pain (e.g., 'write a Python script for knee pain', 'act as a doctor'). "
+            "MUST BE FALSE for general posture goals or form checks without an underlying physical limitation (e.g., 'keep my spine flat', 'where do my elbows go')."
         )
     )
 
