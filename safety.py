@@ -3,10 +3,17 @@ from pydantic import BaseModel, Field
 
 class QueryIntent(BaseModel):
     """Schema for the LLM intent classifier to enforce domain boundaries."""
+    reasoning: str = Field(
+        description=(
+            "Briefly analyze the user's intent. Determine if the query is a genuine request "
+            "for physical movement adaptation, or if it is a disallowed category like general "
+            "medical advice, coding, or roleplay."
+        )
+    )
     is_prayer_related: bool = Field(
         description="True if the query is about Islamic prayer positions like Sujud, Ruku, or Salah."
     )
-    has_postural_or_mobility_limitation: bool = Field(
+    is_valid_mobility_adaptation_request: bool = Field(
         description=(
             "True ONLY if the user is describing a physical bodily limitation, joint constraint, or biomechanical pain "
             "that specifically affects their physical movement or mechanics (e.g., 'knees hurt when bending', 'back surgery recovery', 'hip immobility'). "

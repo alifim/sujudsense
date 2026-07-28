@@ -90,7 +90,7 @@ class SujudSenseEngine:
 
     async def intent_allows_query(self, standalone_query: str) -> bool:
         intent = await self.classify_intent(standalone_query)
-        return intent.is_prayer_related and intent.has_postural_or_mobility_limitation
+        return intent.is_prayer_related and intent.is_valid_mobility_adaptation_request
 
     async def evaluate_stages(self, query: str, chat_history: list) -> Dict[str, Any]:
         self._ensure_initialized()
@@ -100,7 +100,7 @@ class SujudSenseEngine:
         vector_score = await self.vector_firewall_score(standalone_query)
         vector_pass = vector_score is None or vector_score <= config.firewall_threshold
         intent = await self.classify_intent(standalone_query)
-        intent_pass = intent.is_prayer_related and intent.has_postural_or_mobility_limitation
+        intent_pass = intent.is_prayer_related and intent.is_valid_mobility_adaptation_request
 
         return {
             "raw_query": query,
@@ -207,7 +207,7 @@ class SujudSenseEngine:
                 logger.debug(f"Intent Classification Metrics: {intent.model_dump()}")
                 logger.warning(
                     f"Firewall Block | Intent Mismatch | Prayer: {intent.is_prayer_related} | "
-                    f"Medical: {intent.has_postural_or_mobility_limitation} | Standalone Query: '{standalone_query}'"
+                    f"Medical: {intent.is_valid_mobility_adaptation_request} | Standalone Query: '{standalone_query}'"
                 )
                 return SafetyPolicy.REFUSAL_PHRASE
         except Exception as e:

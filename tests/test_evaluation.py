@@ -232,7 +232,7 @@ def test_pipeline_stage(engine, query, stage, group):
 
         stage_outcome = asyncio.run(engine.evaluate_stages(query, []))
         intent = stage_outcome["intent"]
-        actual = (intent["is_prayer_related"], intent["has_postural_or_mobility_limitation"])
+        actual = (intent["is_prayer_related"], intent["is_valid_mobility_adaptation_request"])
         expected_map = {
             "both_true": (True, True),
             "prayer_only": (True, False),
