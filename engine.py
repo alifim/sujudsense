@@ -126,9 +126,16 @@ class SujudSenseEngine:
 
         # 2. The Contextual Condenser (Query Rewriter)
         condense_system = (
-            "Given a chat history and the latest user question which might reference context in the chat history, "
-            "formulate a standalone question which can be understood without the chat history. "
-            "Do NOT answer the question, just reformulate it if needed and otherwise return it as is."
+            """You are a strict query rewriter. Your ONLY job is to take a conversational chat history 
+            and rewrite the user's latest message into a single, standalone question that contains 
+            all relevant medical and situational context.
+
+            CRITICAL RULES:
+            1. DO NOT answer the question.
+            2. DO NOT provide advice.
+            3. If the user mentions a specific body part, injury, or pain in the history, YOU MUST include it in the standalone query.
+
+            Output NOTHING but the rewritten query."""
         )
         condense_prompt = ChatPromptTemplate.from_messages([
             ("system", condense_system),
