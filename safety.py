@@ -22,7 +22,7 @@ class SafetyPolicy:
         "and cannot safely analyze your posture request right now. "
         "Please try asking again in a moment."
     )
-    
+
     REFUSAL_PHRASE = (
         "I focus specifically on adapting prayer postures for physical pain, injuries, "
         "or mobility limitations. To help you safely, could you please share if you are "
@@ -82,7 +82,7 @@ class SafetyPolicy:
 
     GENERAL_CAPABILITY_PATTERNS: List[str] = [
         "what can you do",
-        "what are your capabilities",
+        "your capabilities",
         "who are you",
         "tell me about yourself",
         "how can you help",
