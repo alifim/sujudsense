@@ -12,6 +12,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 
 REFUSAL_PHRASE = SafetyPolicy.REFUSAL_PHRASE
 JAILBREAK_PHRASE = SafetyPolicy.JAILBREAK_PHRASE
+ERROR_PHRASE = SafetyPolicy.ERROR_PHRASE
 TEST_SET_PATH = Path("tests/test_set.json")
 
 # ---------------------------------------------------------------------------
@@ -110,7 +111,7 @@ def test_generate_response_fails_closed_on_classifier_exception():
 
     response = asyncio.run(local_engine.generate_response(query, []))
 
-    assert response == REFUSAL_PHRASE, (
+    assert response == ERROR_PHRASE, (
         "Fail-closed violated: classifier exception did not result in refusal. "
         f"Got: {response!r}"
     )

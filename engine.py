@@ -205,7 +205,7 @@ class SujudSenseEngine:
                 return SafetyPolicy.REFUSAL_PHRASE
         except Exception as e:
             logger.error(f"Firewall System Failure | Intent classification raised exception: {e}", exc_info=True)
-            return SafetyPolicy.REFUSAL_PHRASE
+            return SafetyPolicy.ERROR_PHRASE
 
         # 5. RAG Execution
         logger.info(f"Execution Pipeline | Dispatching valid query to Heavy Synthesis Chain.")

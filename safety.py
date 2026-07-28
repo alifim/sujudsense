@@ -17,6 +17,12 @@ class QueryIntent(BaseModel):
     )
 
 class SafetyPolicy:
+    ERROR_PHRASE = (
+        "I'm experiencing a temporary technical issue "
+        "and cannot safely analyze your posture request right now. "
+        "Please try asking again in a moment."
+    )
+    
     REFUSAL_PHRASE = (
         "I focus specifically on adapting prayer postures for physical pain, injuries, "
         "or mobility limitations. To help you safely, could you please share if you are "
