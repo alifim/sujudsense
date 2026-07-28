@@ -164,7 +164,7 @@ def test_conversational_memory_retains_context(engine):
 
 
 def test_response_not_truncated_and_includes_medical_notice(engine):
-    query = "my knee is hurt. how should i perform prayer?"
+    query = "My knee hurts when I try to bend it, how should I perform prayer?"
     response = asyncio.run(engine.generate_response(query, []))
 
     assert response and response.strip(), f"Empty response for query: {query}"
