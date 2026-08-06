@@ -81,6 +81,33 @@ The system is containerized and deployed on the cloud to ensure reliable access 
 
 ---
 
+## 🧪 Testing & Evaluation
+
+SujudSense includes a comprehensive evaluation suite designed to verify safety, correctness, and conversational robustness before any deployment.
+
+### Test Structure
+
+| Test Category | File | Coverage |
+|---------------|------|----------|
+| End-to-end integration | `tests/test_evaluation.py` | Full pipeline: firewalls → memory condensing → RAG generation → output guards |
+| Per-stage diagnostics | `tests/test_set.json` | 50+ cases across 4 pipeline stages: hardcoded block, capability triggers, vector firewall, intent classification |
+| Safety-critical verification | `tests/test_evaluation.py` | Fail-closed behavior, jailbreak resistance, medical notice enforcement |
+
+### Key Test Cases
+
+- **Jailbreak resistance**: Confirms prompts like *"ignore previous instructions"* are blocked before reaching the LLM
+- **Fail-closed safety**: Verifies that if the intent classifier fails (API error, malformed output), the system refuses rather than generating blindly
+- **Conversational memory**: Proves that ambiguous follow-ups (*"What should I do for Sujud?"*) retain prior medical context (*"I had knee surgery"*) through the condenser chain
+- **Boundary enforcement**: Confirms prayer-only queries (*"What does Ruku mean?"*) and medical-only queries are correctly refused
+
+### Run the Suite
+
+```bash
+export GROQ_API_KEY="your-key"
+python -m pytest tests/test_evaluation.py -v
+```
+---
+
 ## 🛡️ Safety and Response Rules
 
 SujudSense applies explicit programmatic safety rules before and after LLM generation:
@@ -91,25 +118,34 @@ SujudSense applies explicit programmatic safety rules before and after LLM gener
 - **Completeness Enforcement:** Output payloads are systematically formatted with structural headings (`Anatomical Cue` and `Fiqh Validation`). Generation lengths are explicitly capped at `512` tokens.
 - **Medical Safety Notice:** When the response suggests physical prayer adjustments, the system explicitly appends a medical caution advising consultation with a healthcare professional for severe or worsening pain.
 
+Safety rules are enforced programmatically in safety.py and verified by the test suite described in Testing & Evaluation.
+
 ---
+
+## 🏗️ Architecture Note
+
+The knowledge base (`data/biomechanics.txt`, `data/fiqh.txt`) uses synthetic reference documents for demonstration. The pipeline is source-agnostic by design — production deployment would swap in verified biomechanical literature and madhhab-specific Fiqh rulings without changing the RAG or safety architecture.
 
 ## 📂 Repository Structure
 
 ```text
-├── app.py              # Presentation Layer: Manages WebSocket sessions and UI rendering
-├── engine.py           # Service Layer: Handles conversational state, RAG orchestration, and firewalls
-├── config.py           # Configuration Layer: Environment variable resolution and type-safe defaults
-├── safety.py           # Security Layer: Hardcoded policies, intent schema, and blocklists
-├── logger.py           # Telemetry Layer: Centralized, environment-toggled application logger
-├── chainlit.md         # Application entry view and user welcome screen
+├── app.py                    # Presentation Layer: Manages WebSocket sessions and UI rendering
+├── engine.py                 # Service Layer: Handles conversational state, RAG orchestration, and firewalls
+├── config.py                 # Configuration Layer: Environment variable resolution and type-safe defaults
+├── safety.py                 # Security Layer: Hardcoded policies, intent schema, and blocklists
+├── logger.py                 # Telemetry Layer: Centralized, environment-toggled application logger
+├── tests/
+│   ├── test_evaluation.py    # End-to-end integration and per-stage diagnostic tests
+│   └── test_set.json         # Structured test cases across all pipeline stages
+├── chainlit.md               # Application entry view and user welcome screen
 ├── public/
-│   └── analytics.js    # Client-side Google Analytics (GA4) injection script
+│   └── analytics.js          # Client-side Google Analytics (GA4) injection script
 ├── .chainlit/
-│   └── config.toml     # Chainlit UI setup linking custom JS assets
-├── data/               # Ground-Truth Knowledge Base (Immutable Source Text)
-│   ├── biomechanics.txt# Structured orthopedic and athletic movement constraints
-│   └── fiqh.txt        # Canonical jurisprudential modification rulings
-└── pyproject.toml      # Deterministic project metadata and dependencies
+│   └── config.toml           # Chainlit UI setup linking custom JS assets
+├── data/                     # Ground-Truth Knowledge Base (Immutable Source Text)
+│   ├── biomechanics.txt      # Structured orthopedic and athletic movement constraints
+│   └── fiqh.txt              # Canonical jurisprudential modification rulings
+└── pyproject.toml            # Deterministic project metadata and dependencies
 ```
 
 ---
@@ -122,10 +158,11 @@ The system architecture relies entirely on twelve-factor configuration practices
 | --- | --- | --- |
 | `LOG_LEVEL` | `INFO` | Toggles telemetry output verbosity (`DEBUG` or `INFO`) |
 | `FIREWALL_THRESHOLD` | `1.4` | Calibrated semantic distance cap for off-topic query rejection |
+| `FAST_LLM_MODEL` | `llama-3.1-8b-instant` | Model used for low-latency routing and context condensing |
+| `FAST_LLM_MODEL_MAX_TOKENS` | `256` | Token limit for fast LLM operations (classification, rewriting) |
 | `HEAVY_LLM_MODEL` | `llama-3.3-70b-versatile` | Model used for final RAG synthesis and reasoning |
-| `FAST_LLM_MODEL` | `llama-3.3-70b-versatile` | Model used for low-latency routing and context condensing |
-| `LLM_MAX_TOKENS` | `512` | Output response limit protecting against token drain |
-| `LLM_TEMPERATURE` | `0.1` | Low temperature variable ensuring highly deterministic generation |
+| `HEAVY_LLM_TEMPERATURE` | `0.1` | Low temperature for highly deterministic generation |
+| `HEAVY_LLM_MAX_TOKENS` | `512` | Output response limit protecting against token drain |
 | `RETRIEVAL_K` | `3` | Number of context documents passed to the compilation prompt |
 | `CHROMA_PERSIST_DIR` | `./chroma_db` | Disk directory mapping for the persistent storage layer |
 
