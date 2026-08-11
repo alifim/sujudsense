@@ -23,8 +23,30 @@ class SujudSenseEngine:
         self.rag_chain: Optional[Runnable] = None
         self.retriever: Optional[Runnable] = None
 
+    def load_clean_sources(self) -> list:
+        docs = []
+        
+        # Clean biomechanics
+        bio_path = "sources/v3_clean/biomechanics_clean.md"
+        if os.path.exists(bio_path):
+            loader = TextLoader(bio_path)
+            for doc in loader.load():
+                doc.metadata["source_tier"] = "verified_peer_reviewed_cleaned"
+                doc.metadata["domain"] = "biomechanics"
+                docs.append(doc)
+        
+        # Clean fiqh
+        fiqh_path = "sources/v3_clean/fiqh_clean.md"
+        if os.path.exists(fiqh_path):
+            loader = TextLoader(fiqh_path)
+            for doc in loader.load():
+                doc.metadata["source_tier"] = "verified_official_fatwa_cleaned"
+                doc.metadata["domain"] = "fiqh"
+                docs.append(doc)
+        
+        return docs
+
     async def initialize(self):
-        """Asynchronously sets up the RAG assets."""
         logger.info("Bootstrapping SujudSenseEngine...")
         embeddings = HuggingFaceEmbeddings(model_name=config.embedding_model)
 
@@ -35,14 +57,13 @@ class SujudSenseEngine:
                 embedding_function=embeddings,
             )
         else:
-            logger.info("Building new vector store...")
-            docs = []
-            for path in ["data/biomechanics.txt", "data/fiqh.txt"]:
-                docs.extend(TextLoader(path).load())
-
+            logger.info("Building new vector store from verified sources...")
+            docs = self.load_clean_sources()
+            
             text_splitter = RecursiveCharacterTextSplitter(
                 chunk_size=config.chunk_size,
                 chunk_overlap=config.chunk_overlap,
+                separators=["\n\n", "\n", ". ", " "],
             )
             chunks = text_splitter.split_documents(docs)
 
@@ -78,10 +99,10 @@ class SujudSenseEngine:
     async def vector_firewall_score(self, standalone_query: str) -> Optional[float]:
         self._ensure_initialized()
         assert self.vector_store is not None
-        raw_results = await self.vector_store.asimilarity_search_with_score(standalone_query, k=1)
+        raw_results = await self.vector_store.asimilarity_search_with_score(standalone_query, k=1) # semantic search for the closest match only, k=1
         if not raw_results:
             return None
-        _, best_score = raw_results[0]
+        _, best_score = raw_results[0] # get the best match only
         return best_score
 
     async def classify_intent(self, standalone_query: str) -> QueryIntent:
