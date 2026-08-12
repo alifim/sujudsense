@@ -15,11 +15,14 @@ class QueryIntent(BaseModel):
     )
     is_valid_mobility_adaptation_request: bool = Field(
         description=(
-            "True ONLY if the user is describing a physical bodily limitation, joint constraint, or biomechanical pain "
-            "that specifically affects their physical movement or mechanics (e.g., 'knees hurt when bending', 'back surgery recovery', 'hip immobility'). "
-            "MUST BE FALSE for general medical advice, dietary questions, or treatment plans (e.g., 'how to heal a torn ACL', 'foods for inflammation'). "
-            "MUST BE FALSE for unrelated tasks, coding, or AI roleplay that happen to mention pain (e.g., 'write a Python script for knee pain', 'act as a doctor'). "
-            "MUST BE FALSE for general posture goals or form checks without an underlying physical limitation (e.g., 'keep my spine flat', 'where do my elbows go')."
+            "True if the user is asking about prayer posture adjustments due to physical pain, injury, "
+            "surgery, mobility limitation, or any bodily constraint that affects prayer movements. "
+            "This includes: direct descriptions of pain ('knee hurts', 'back pain'), questions about "
+            "when adaptations are permitted ('when should I sit on a chair'), and requests for guidance "
+            "on modified postures for physical conditions. "
+            "MUST BE FALSE for general medical advice unrelated to prayer (e.g., 'how to heal a torn ACL', "
+            "'foods for inflammation'), coding tasks, or AI roleplay. "
+            "MUST BE FALSE for general religious knowledge without physical limitation (e.g., 'how many rakahs in Fajr')."
         )
     )
 
