@@ -136,7 +136,7 @@ def test_generate_response_fails_closed_on_classifier_exception():
     If the intent classifier throws (e.g. API error, malformed structured output),
     the system must refuse, not silently pass the query through to generation.
     """
-    query = "My upper back hurts in Ruku and I need to know how to protect my posture."
+    query = "How should I position my elbows while sujud?"
     local_engine = SujudSenseEngine()
     asyncio.run(local_engine.initialize())
 

@@ -136,7 +136,7 @@ class SafetyPolicy:
         query_lower = query.lower()
         
         # Pattern 1: chair/sitting adaptation + prayer term
-        if ("chair" in query_lower or "sit" in query_lower) and cls._contains_prayer_terms(query):
+        if ("chair" in query_lower or "sitting" in query_lower) and cls._contains_prayer_terms(query):
             return True
         
         # Pattern 2: explicit body part + pain/injury + prayer

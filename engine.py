@@ -280,6 +280,7 @@ class SujudSenseEngine:
                 is_prayer_related=True,
                 is_valid_mobility_adaptation_request=True,
             )
+            logger.info(f"Intent Classification | Hardcoded bypass triggered for query: '{standalone_query}'")
             return True, bypass_intent
         
         intent = await self.classify_intent(standalone_query)
