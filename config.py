@@ -1,5 +1,6 @@
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import List
 
 @dataclass(frozen=True)
 class AppConfig:
@@ -9,6 +10,11 @@ class AppConfig:
     chunk_size: int = int(os.getenv("CHUNK_SIZE", "500"))
     chunk_overlap: int = int(os.getenv("CHUNK_OVERLAP", "50"))
     retrieval_k: int = int(os.getenv("RETRIEVAL_K", "3"))
+    use_hybrid: bool = os.getenv("USE_HYBRID", "false").lower() == "true"
+    hybrid_weights: List[float] = field(default_factory=lambda: [
+        float(os.getenv("HYBRID_BM25_WEIGHT", "0.5")),
+        float(os.getenv("HYBRID_DENSE_WEIGHT", "0.5")),
+    ])
     
     # LLM Settings
     fast_llm_model: str = os.getenv("FAST_LLM_MODEL", "llama-3.3-70b-versatile")
