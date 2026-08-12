@@ -15,14 +15,11 @@ class QueryIntent(BaseModel):
     )
     is_valid_mobility_adaptation_request: bool = Field(
         description=(
-            "True if the user is asking about prayer posture adjustments due to physical pain, injury, "
-            "surgery, mobility limitation, or any bodily constraint that affects prayer movements. "
-            "This includes: direct descriptions of pain ('knee hurts', 'back pain'), questions about "
-            "when adaptations are permitted ('when should I sit on a chair'), and requests for guidance "
-            "on modified postures for physical conditions. "
-            "MUST BE FALSE for general medical advice unrelated to prayer (e.g., 'how to heal a torn ACL', "
-            "'foods for inflammation'), coding tasks, or AI roleplay. "
-            "MUST BE FALSE for general religious knowledge without physical limitation (e.g., 'how many rakahs in Fajr')."
+            "True ONLY if the user is describing a physical bodily limitation, joint constraint, or biomechanical pain "
+            "that specifically affects their physical movement or mechanics (e.g., 'knees hurt when bending', 'back surgery recovery', 'hip immobility'). "
+            "MUST BE FALSE for general medical advice, dietary questions, or treatment plans (e.g., 'how to heal a torn ACL', 'foods for inflammation'). "
+            "MUST BE FALSE for unrelated tasks, coding, or AI roleplay that happen to mention pain (e.g., 'write a Python script for knee pain', 'act as a doctor'). "
+            "MUST BE FALSE for general posture goals or form checks without an underlying physical limitation (e.g., 'keep my spine flat', 'where do my elbows go')."
         )
     )
 
@@ -132,3 +129,21 @@ class SafetyPolicy:
     def should_provide_capability_response(cls, query: str) -> bool:
         query_lower = query.lower()
         return any(pattern in query_lower for pattern in cls.GENERAL_CAPABILITY_PATTERNS)
+
+    @classmethod
+    def is_obvious_mobility_adaptation(cls, query: str) -> bool:
+        """Hardcoded bypass for clear mobility+prayer queries that strict classifier might miss."""
+        query_lower = query.lower()
+        
+        # Pattern 1: chair/sitting adaptation + prayer term
+        if ("chair" in query_lower or "sit" in query_lower) and cls._contains_prayer_terms(query):
+            return True
+        
+        # Pattern 2: explicit body part + pain/injury + prayer
+        body_parts = ["knee", "back", "shoulder", "hip", "wrist", "elbow", "neck", "ankle", "leg", "arm"]
+        pain_terms = ["hurt", "pain", "surgery", "injury", "cannot", "unable", "stiffness", "limited"]
+        has_body_pain = any(b in query_lower for b in body_parts) and any(p in query_lower for p in pain_terms)
+        if has_body_pain and cls._contains_prayer_terms(query):
+            return True
+        
+        return False

@@ -273,7 +273,15 @@ class SujudSenseEngine:
         return cast(QueryIntent, await self.intent_classifier.ainvoke(standalone_query))
 
     async def intent_allows_query(self, standalone_query: str) -> tuple[bool, QueryIntent]:
-        """Returns (is_allowed, intent) to avoid double-calling the classifier."""
+        if SafetyPolicy.is_obvious_mobility_adaptation(standalone_query):
+            # Synthetic intent for logging consistency
+            bypass_intent = QueryIntent(
+                reasoning="Hardcoded bypass: obvious mobility+prayer pattern detected",
+                is_prayer_related=True,
+                is_valid_mobility_adaptation_request=True,
+            )
+            return True, bypass_intent
+        
         intent = await self.classify_intent(standalone_query)
         is_allowed = intent.is_prayer_related and intent.is_valid_mobility_adaptation_request
         return is_allowed, intent
