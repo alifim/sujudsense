@@ -180,13 +180,84 @@ class SujudSenseEngine:
     def is_capability_query(self, query: str) -> bool:
         return SafetyPolicy.should_provide_capability_response(query)
 
+    def _rule_based_condense(self, query: str, chat_history: list) -> str:
+        """Deterministic fallback for query condensation. Handles common correction patterns."""
+        import re
+
+        query_lower = query.lower()
+        positions = ["ruku", "sujud", "julus", "tashahhud", "qiyam", "salam", "sitting between", "sajdah"]
+
+        # Detect correction patterns: "I mean X", "actually X", "not Y, I want X"
+        correction_patterns = [
+            r'i mean\s+(\w+)',
+            r'actually\s+i?\s*meant?\s+(\w+)',
+            r'switch(?:ing)?\s+to\s+(\w+)',
+            r'what about\s+(\w+)\s+instead',
+        ]
+
+        current_pos = None
+        for pattern in correction_patterns:
+            match = re.search(pattern, query_lower)
+            if match:
+                candidate = match.group(1)
+                if candidate in positions:
+                    current_pos = candidate
+                    break
+
+        # If no correction detected, find first position in query
+        if not current_pos:
+            current_pos = next((p for p in positions if p in query_lower), None)
+
+        # Extract body part/pain from last human message
+        if len(chat_history) >= 2:
+            last_human_msg = chat_history[-2]
+            last_human = str(getattr(last_human_msg, 'content', last_human_msg)).lower()
+        else:
+            last_human = ""
+
+        body_parts = ["lower back", "back", "knee", "shoulder", "hip", "wrist", "elbow", "neck", "ankle", "leg", "arm"]
+        mentioned_body = [b for b in body_parts if b in last_human]
+
+        pain_terms = ["pain", "hurt", "surgery", "injury", "cannot", "unable", "recovery", "sore", "ache"]
+        has_pain = any(t in last_human for t in pain_terms)
+
+        # Build standalone query
+        if current_pos and has_pain and mentioned_body:
+            body_str = mentioned_body[0]
+            result = f"What adjustments for {body_str} pain during {current_pos}?"
+        elif current_pos and has_pain:
+            result = f"What adjustments for pain during {current_pos}?"
+        elif current_pos:
+            result = f"What adjustments during {current_pos}?"
+        else:
+            result = query
+
+        logger.info(f"Memory Condenser (Rule-based) | Rewrote to: '{result}'")
+        return result
+
     async def condense_query(self, query: str, chat_history: list) -> str:
-        if chat_history:
-            return await self.condenser_chain.ainvoke({
+        if not chat_history:
+            return query
+
+        try:
+            llm_result = await self.condenser_chain.ainvoke({
                 "chat_history": chat_history,
                 "input": query,
             })
-        return query
+            llm_result = llm_result.strip()
+
+            # Validate LLM output
+            bad_patterns = ["yoga", "pose", "movement", "(prostration)", "(seated)"]
+            if llm_result and not any(bp in llm_result.lower() for bp in bad_patterns):
+                if llm_result != query:
+                    logger.info(f"Memory Condenser | Rewrote to: '{llm_result}'")
+                return llm_result
+
+            logger.warning(f"LLM condenser output failed validation: '{llm_result}'. Falling back to rule-based.")
+        except Exception as e:
+            logger.warning(f"LLM condenser failed: {e}. Falling back to rule-based.")
+
+        return self._rule_based_condense(query, chat_history)
 
     async def vector_firewall_score(self, standalone_query: str) -> Optional[float]:
         self._ensure_initialized()
@@ -233,19 +304,34 @@ class SujudSenseEngine:
             max_tokens=config.fast_llm_model_max_tokens
         )
         
+        # Build intent classifier
         self.intent_classifier = deterministic_llm.with_structured_output(QueryIntent)
 
+        # Build FEW-SHOT condenser (replaces the old generic condenser)
         condense_system = (
-            """You are a strict query rewriter. Your ONLY job is to take a conversational chat history 
-            and rewrite the user\'s latest message into a single, standalone question that contains 
-            all relevant medical and situational context.
-
-            CRITICAL RULES:
-            1. DO NOT answer the question.
-            2. DO NOT provide advice.
-            3. If the user mentions a specific body part, injury, or pain in the history, YOU MUST include it in the standalone query.
-
-            Output NOTHING but the rewritten query."""
+            "You are a strict query rewriter for a prayer posture assistant.\n\n"
+            "Your job: combine chat history + latest user message into ONE standalone question.\n\n"
+            "CRITICAL RULES:\n"
+            "1. Output ONLY the rewritten question. No advice, no answers, no explanations.\n"
+            "2. If the user corrects a position ('I mean X, not Y', 'actually X', 'switch to X', 'what about X instead'), use ONLY the corrected position X.\n"
+            "3. Use exact prayer position names: Ruku, Sujud, Julus, Qiyam, Tashahhud, Salam. Do NOT add labels like '(prostration)', '(seated)', 'movement', 'pose', or 'yoga'.\n"
+            "4. Carry forward pain/injury/body part context from history ONLY if the user hasn't explicitly changed the body part or dismissed it.\n"
+            "5. Keep it concise (under 15 words if possible).\n"
+            "6. Never reframe static positions as 'movements'.\n\n"
+            "EXAMPLES:\n\n"
+            "History: [User: 'I have knee pain in Sujud']\n"
+            "Latest: 'What about Ruku?'\n"
+            "Output: What adjustments for knee pain during Ruku?\n\n"
+            "History: [User: 'Lower back pain during Ruku']\n"
+            "Latest: 'I mean julus, not ruku'\n"
+            "Output: What adjustments for lower back pain during Julus?\n\n"
+            "History: [User: 'Shoulder hurts in Ruku']\n"
+            "Latest: 'Actually I meant Sujud, my shoulder is fine in Ruku'\n"
+            "Output: What adjustments for shoulder pain during Sujud?\n\n"
+            "History: [User: 'I feel lower back pain during Ruku; what adjustments are safe?']\n"
+            "Latest: 'can you simplify your language? i don't understand intradiscal pressure, lumbar herniation'\n"
+            "Output: Simplify the previous answer about lower back pain during Ruku using plain language.\n\n"
+            "Now rewrite this conversation:"
         )
         condense_prompt = ChatPromptTemplate.from_messages([
             ("system", condense_system),

@@ -162,6 +162,23 @@ def test_conversational_memory_retains_context(engine):
         "The LLM failed to incorporate the knee context from the chat history into the final answer."
     )
 
+def test_condenser_preserves_correct_position_and_context(engine):
+    history = [
+        HumanMessage(content="I feel lower back pain during Ruku; what adjustments are safe?"),
+        AIMessage(content="To alleviate lower back pain during Ruku, focus on hinging at the hips..."),
+    ]
+    follow_up = "I mean julus, not ruku while seating"
+    
+    standalone = asyncio.run(engine.condense_query(follow_up, history))
+    
+    assert "julus" in standalone.lower(), f"Dropped position: {standalone!r}"
+    assert "(prostration)" not in standalone.lower(), f"Hallucinated label: {standalone!r}"
+    assert "movement" not in standalone.lower(), f"Reframed as movement: {standalone!r}"
+    assert "lower back" in standalone.lower() or "back pain" in standalone.lower(), f"Lost pain context: {standalone!r}"
+    assert "when seated" not in standalone.lower() and "seated julus" not in standalone.lower(), f"Redundant seated: {standalone!r}"
+    assert "yoga" not in standalone.lower(), f"Hallucinated yoga: {standalone!r}"
+    assert "pose" not in standalone.lower(), f"Hallucinated pose: {standalone!r}"
+
 def test_simplification_request_not_blocked_by_medical_terms(engine):
     """
     Regression test: A user asking to simplify medical jargon from a previous
