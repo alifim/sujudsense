@@ -103,7 +103,10 @@ class SafetyPolicy:
     )
 
     MEDICAL_NOTICE = (
-        "If you have severe or worsening pain, please consult a medical professional before trying any physical adjustments."
+        "If you have severe or worsening pain, please consult a medical professional before trying any physical adjustments.\n\n"
+        "**Sources:**\n"
+        "- [Biomechanics: Nazish & Kalra (2018)](https://www.ijhsr.org/IJHSR_Vol.8_Issue.7_July2018/43.pdf)\n"
+        "- [Fiqh: GAIAE (2015)](https://islamiceducationinuae.wordpress.com/wp-content/uploads/2018/12/Salatul-Mareed_Prayer-of-the-Sick.pdf)"
     )
 
     @classmethod
