@@ -64,7 +64,6 @@ class SafetyPolicy:
         "surgery",
         "surgical",
         "doctor",
-        "medical",
         "prescription",
         "diagnosis",
         "injury",

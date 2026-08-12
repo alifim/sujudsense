@@ -162,6 +162,30 @@ def test_conversational_memory_retains_context(engine):
         "The LLM failed to incorporate the knee context from the chat history into the final answer."
     )
 
+def test_simplification_request_not_blocked_by_medical_terms(engine):
+    """
+    Regression test: A user asking to simplify medical jargon from a previous
+    answer must NOT be blocked by the hardcoded policy catching 'medical terms'.
+    
+    The query contains 'medical terms' but is a follow-up clarification, not a
+    request for medical advice. The hardcoded policy should not fire.
+    """
+    history = [
+        HumanMessage(content="I feel lower back pain during Ruku; what adjustments are safe?"),
+        AIMessage(content="To alleviate lower back pain during Ruku, focus on 'hinging at the hips'... intradiscal pressure, lumbar herniation..."),
+    ]
+    simplification_query = "can you simplify your language? i don't understand intradiscal pressure, lumbar herniation, other medical terms"
+    
+    response = asyncio.run(engine.generate_response(simplification_query, chat_history=history))
+
+    assert response not in [REFUSAL_PHRASE, JAILBREAK_PHRASE], (
+        f"Simplification request was falsely blocked by hardcoded policy or intent classifier. "
+        f"Query: {simplification_query!r}\nResponse: {response!r}"
+    )
+    assert "intradiscal" not in response.lower() or "simple" in response.lower() or "easy" in response.lower(), (
+        f"Response should use simpler language, but still contains heavy jargon. "
+        f"Response: {response!r}"
+    )
 
 def test_response_not_truncated_and_includes_medical_notice(engine):
     query = "My knee hurts when I try to bend it, how should I perform prayer?"
