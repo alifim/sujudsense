@@ -54,6 +54,12 @@ EMG studies show significant upper trapezius activation during salam position. S
 
 **Adaptations for injury:** If shoulder injury prevents placing hands on knees during ruku, bend as far as safely possible. The pillar is the bowing motion with intention, not the hand placement. If the shoulder cannot bear weight in sujud, use a raised support or chair.
 
+## Arm Biomechanics in Prayer
+
+The arm (upper limb) extends from the shoulder to the hand, comprising the upper arm, elbow, forearm, and wrist. During ruku, the arms extend to grasp the knees. During sujud, the forearms support body weight with elbows flexed. Post-surgical arms or arm injuries may prevent these positions.
+
+**Adaptations for injury:** If arm pain or injury prevents extending the arms to grasp the knees during ruku, bend only as far as safely possible. The pillar is the bowing motion with intention, not the hand placement. If arm pain prevents bearing weight on the forearms during sujud, use a raised support or chair.
+
 ## Wrist and Hand Biomechanics in Prayer
 
 Sujud distributes approximately 30-40 percent of body weight through the wrists. Wrist extension in standard sujud reaches 70-90 degrees. Post-fracture or carpal tunnel syndrome may make palm placement painful.
