@@ -272,9 +272,11 @@ class SujudSenseEngine:
         self._ensure_initialized()
         return cast(QueryIntent, await self.intent_classifier.ainvoke(standalone_query))
 
-    async def intent_allows_query(self, standalone_query: str) -> bool:
+    async def intent_allows_query(self, standalone_query: str) -> tuple[bool, QueryIntent]:
+        """Returns (is_allowed, intent) to avoid double-calling the classifier."""
         intent = await self.classify_intent(standalone_query)
-        return intent.is_prayer_related and intent.is_valid_mobility_adaptation_request
+        is_allowed = intent.is_prayer_related and intent.is_valid_mobility_adaptation_request
+        return is_allowed, intent
 
     async def evaluate_stages(self, query: str, chat_history: list) -> Dict[str, Any]:
         self._ensure_initialized()
@@ -391,12 +393,12 @@ class SujudSenseEngine:
             return SafetyPolicy.REFUSAL_PHRASE
 
         try:
-            if not await self.intent_allows_query(standalone_query):
-                intent = await self.classify_intent(standalone_query)
+            intent_pass, intent = await self.intent_allows_query(standalone_query)
+            if not intent_pass:
                 logger.debug(f"Intent Classification Metrics: {intent.model_dump()}")
                 logger.warning(
                     f"Firewall Block | Intent Mismatch | Prayer: {intent.is_prayer_related} | "
-                    f"Medical: {intent.is_valid_mobility_adaptation_request} | Standalone Query: \'{standalone_query}\'"
+                    f"Medical: {intent.is_valid_mobility_adaptation_request} | Standalone Query: '{standalone_query}'"
                 )
                 return SafetyPolicy.REFUSAL_PHRASE
         except Exception as e:
