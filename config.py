@@ -9,7 +9,7 @@ class AppConfig:
     persist_directory: str = os.getenv("CHROMA_PERSIST_DIR", "./chroma_db")
     chunk_size: int = int(os.getenv("CHUNK_SIZE", "500"))
     chunk_overlap: int = int(os.getenv("CHUNK_OVERLAP", "50"))
-    retrieval_k: int = int(os.getenv("RETRIEVAL_K", "3"))
+    retrieval_k: int = int(os.getenv("RETRIEVAL_K", "10"))
     use_hybrid: bool = os.getenv("USE_HYBRID", "false").lower() == "true"
     hybrid_weights: List[float] = field(default_factory=lambda: [
         float(os.getenv("HYBRID_BM25_WEIGHT", "0.5")),
