@@ -232,12 +232,26 @@ class SujudSenseEngine:
         else:
             result = query
 
+        # Preserve meta-instructions like "simplify", "clarify", "explain", etc.
+        meta_instructions = ["simplify", "simpler", "easy", "explain", "clarify", "clarification", "more detail", "details"]
+        if any(meta in query_lower for meta in meta_instructions):
+            # Find which meta-instruction is present
+            found_meta = [meta for meta in meta_instructions if meta in query_lower]
+            if found_meta:
+                result = f"{result} Please {found_meta[0]} your language."
+
         logger.info(f"Memory Condenser (Rule-based) | Rewrote to: '{result}'")
         return result
 
     async def condense_query(self, query: str, chat_history: list) -> str:
         if not chat_history:
             return query
+
+        # Track if original query has meta-instructions
+        query_lower = query.lower()
+        meta_instructions = ["simplify", "simpler", "easy", "explain", "clarify", "clarification", "more detail", "details"]
+        has_meta = any(meta in query_lower for meta in meta_instructions)
+        found_meta = [meta for meta in meta_instructions if meta in query_lower][0] if has_meta else None
 
         try:
             llm_result = await self.condenser_chain.ainvoke({
@@ -249,6 +263,10 @@ class SujudSenseEngine:
             # Validate LLM output
             bad_patterns = ["yoga", "pose", "movement", "(prostration)", "(seated)"]
             if llm_result and not any(bp in llm_result.lower() for bp in bad_patterns):
+                # If original query had meta-instructions but result doesn't, add them back
+                if has_meta and found_meta and found_meta not in llm_result.lower():
+                    llm_result = f"{llm_result} Please {found_meta} your language."
+                
                 if llm_result != query:
                     logger.info(f"Memory Condenser | Rewrote to: '{llm_result}'")
                 return llm_result
