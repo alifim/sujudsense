@@ -44,7 +44,11 @@ Sitting is done on the left leg with knee flexed, inverted dorsi-flexed ankle, a
 
 The neck is rotated during salam (turning right and left to wish peace). EMG studies show significant activation of neck extensors and sternocleidomastoid muscles during this movement. Cervical spondylosis may be prevented by regular salat practice due to controlled neck rotation. The head is lower than the heart during sujud, increasing blood flow to the brain.
 
-**Adaptations for injury:** If neck pain prevents standard head position, adjust head alignment to avoid pain. Tuck the chin slightly and avoid excessive cervical rotation during ruku and sujud.
+> Note: The following subsection on neck position during ruku synthesizes general cervical spine biomechanics principles with the prayer posture context.
+
+**Neck Position During Ruku:** During ruku, the neck should remain in a neutral position, aligned with the spine. Looking up or down excessively during ruku can strain the cervical extensors. The head should follow the natural line of the back, neither hyperextended nor flexed.
+
+**Adaptations for injury:** If neck (cervical) pain prevents standard head position, adjust head alignment to avoid pain. Tuck the chin slightly and avoid excessive cervical rotation during ruku and sujud. If neck pain is triggered by the downward gaze of ruku, keep the neck in a neutral position and only bow as far as comfortable.
 
 ## Shoulder Biomechanics in Prayer
 
