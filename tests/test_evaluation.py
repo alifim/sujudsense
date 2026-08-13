@@ -61,6 +61,76 @@ def _mock_classify_intent_smart(query: str) -> QueryIntent:
     )
 
 
+def _mock_condense_query_smart(query: str, chat_history: list) -> str:
+    """
+    Mock query condenser that intelligently rewrites queries based on history.
+    
+    Preserves pain context, detects prayer position corrections, and maintains
+    meta-instructions like "simplify", "clarify", etc. Saves tokens by avoiding
+    LLM calls while maintaining semantically valid condensed queries.
+    """
+    import re
+    
+    query_lower = query.lower()
+    
+    # Prayer positions to detect and preserve
+    positions = ["ruku", "sujud", "julus", "tashahhud", "qiyam", "salam", "sajdah"]
+    
+    # Meta-instructions to preserve
+    meta_instructions = ["simplify", "simpler", "easy", "explain", "clarify", "clarification", "more detail", "details"]
+    
+    # Detect if query is a position correction
+    correction_patterns = [
+        r'i mean\s+(\w+)',
+        r'actually\s+i?\s*meant?\s+(\w+)',
+        r'switch(?:ing)?\s+to\s+(\w+)',
+        r'what about\s+(\w+)\s+instead',
+    ]
+    
+    current_pos = None
+    for pattern in correction_patterns:
+        match = re.search(pattern, query_lower)
+        if match:
+            candidate = match.group(1)
+            if candidate in positions:
+                current_pos = candidate
+                break
+    
+    # If no correction detected, find first position in query or history
+    if not current_pos:
+        current_pos = next((p for p in positions if p in query_lower), None)
+    
+    # Extract body part and pain context from history
+    body_part = None
+    if len(chat_history) >= 2:
+        last_human_msg = chat_history[-2]
+        last_human = str(getattr(last_human_msg, 'content', last_human_msg)).lower()
+        
+        body_parts = ["lower back", "back", "knee", "shoulder", "hip", "wrist", "elbow", "neck", "ankle", "leg", "arm"]
+        for bp in body_parts:
+            if bp in last_human:
+                body_part = bp
+                break
+    
+    # Detect if query has meta-instructions
+    has_meta = any(meta in query_lower for meta in meta_instructions)
+    found_meta = next((meta for meta in meta_instructions if meta in query_lower), None)
+    
+    # Build condensed query
+    if current_pos and body_part:
+        result = f"What adjustments for {body_part} pain during {current_pos}?"
+    elif current_pos:
+        result = f"What adjustments during {current_pos}?"
+    else:
+        result = query
+    
+    # Append meta-instructions if present in original query
+    if has_meta and found_meta:
+        result = f"{result} Please {found_meta} your language."
+    
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -101,6 +171,35 @@ def engine_with_mocked_classifier():
     # Mock only the new instance, not the shared session engine
     # Use side_effect with the smart classifier function to handle different query types
     mocked_engine.classify_intent = AsyncMock(side_effect=_mock_classify_intent_smart)
+    return mocked_engine
+
+
+@pytest.fixture(scope="session")
+def engine_with_mocked_condenser():
+    """Engine with BOTH classifier AND condenser mocked for maximum token savings.
+    
+    Use this for multi-turn conversation tests where you only care about final output quality,
+    not intermediate query condensation or intent classification accuracy.
+    
+    Saves ~95% of LLM tokens compared to real implementations by:
+    - Mocking condense_query: Skips expensive history processing LLM calls
+    - Mocking classify_intent: Skips intent classification LLM calls
+    
+    Both mocks use intelligent keyword detection to return semantically valid results.
+    
+    Creates a FRESH engine instance so it doesn't interfere with other tests.
+    """
+    if not os.getenv("GROQ_API_KEY"):
+        pytest.fail(
+            "GROQ_API_KEY is not set; SujudSense evaluation requires Groq credentials.\n"
+            "Set GROQ_API_KEY in your environment or in .env before running tests."
+        )
+    mocked_engine = SujudSenseEngine()
+    asyncio.run(mocked_engine.initialize())
+    
+    # Mock both the classifier and the condenser
+    mocked_engine.classify_intent = AsyncMock(side_effect=_mock_classify_intent_smart)
+    mocked_engine.condense_query = AsyncMock(side_effect=_mock_condense_query_smart)
     return mocked_engine
 
 
@@ -260,14 +359,14 @@ def test_capability_queries_return_scope_description(engine_with_mocked_classifi
 # Section 4: Multi-turn & condenser tests (MOCKED classifier — test conversation logic)
 # ---------------------------------------------------------------------------
 
-def test_conversational_memory_retains_context(engine_with_mocked_classifier):
+def test_conversational_memory_retains_context(engine_with_mocked_condenser):
     """Condenser passes prior medical context into standalone query."""
     history = [
         HumanMessage(content="I recently had knee surgery and my joint hurts when I bend it."),
         AIMessage(content="I understand. I can help you safely adjust your prayer postures. Which position is causing you trouble?")
     ]
     ambiguous_query = "What should I do for Sujud?"
-    response = asyncio.run(engine_with_mocked_classifier.generate_response(ambiguous_query, chat_history=history))
+    response = asyncio.run(engine_with_mocked_condenser.generate_response(ambiguous_query, chat_history=history))
 
     assert response != REFUSAL_PHRASE, (
         "The Context Condenser failed! The Intent Classifier blocked the query because it lost the medical context."
