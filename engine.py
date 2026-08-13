@@ -16,6 +16,9 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import Runnable
 from langchain_core.documents import Document
+from langchain_classic.retrievers.contextual_compression import ContextualCompressionRetriever
+from langchain_classic.retrievers.document_compressors import CrossEncoderReranker
+from langchain_community.cross_encoders import HuggingFaceCrossEncoder
 
 from config import config
 from logger import logger
@@ -27,10 +30,12 @@ class SujudSenseEngine:
         self.vector_store: Optional[Chroma] = None
         self.rag_chain: Optional[Runnable] = None
         self.retriever: Optional[Runnable] = None
+        self.base_retriever: Optional[Runnable] = None  # Store pre-reranking retriever for testing
         self._chunks: List[Document] = []
         self.use_hybrid = getattr(config, "use_hybrid", False)
         self.hybrid_weights = getattr(config, "hybrid_weights", [0.5, 0.5])
 
+    
     def load_clean_sources(self) -> List[Document]:
         """Load from cleaned sources (verified PDF extractions)."""
         docs = []
@@ -165,6 +170,17 @@ class SujudSenseEngine:
                 )
             else:
                 self.retriever = chroma_retriever
+
+        # Store base retriever before adding reranker (for pytest comparison)
+        self.base_retriever = self.retriever
+
+        if config.use_reranker:
+            cross_encoder = HuggingFaceCrossEncoder(model_name=config.reranker_model)
+            reranker = CrossEncoderReranker(model=cross_encoder, top_n=3)
+            self.retriever = ContextualCompressionRetriever(
+                        base_compressor=reranker,
+                        base_retriever=self.retriever,
+                    )
 
         self._build_chain()
         logger.info("Engine initialization complete.")

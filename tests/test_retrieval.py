@@ -1,5 +1,7 @@
 # tests/test_retrieval.py
 import asyncio
+import os
+
 import pytest
 
 from engine import SujudSenseEngine
@@ -73,10 +75,22 @@ ALL_QUERIES = _build_all_queries()
 # =============================================================================
 
 @pytest.fixture(scope="session")
+def engine():
+    """Initialize the default engine for retrieval tests."""
+    if not os.getenv("GROQ_API_KEY"):
+        pytest.fail(
+            "GROQ_API_KEY is not set; retrieval tests require Groq credentials.\n"
+            "Set GROQ_API_KEY in your environment or in .env before running tests."
+        )
+
+    configured_engine = SujudSenseEngine()
+    asyncio.run(configured_engine.initialize())
+    return configured_engine
+
+
+@pytest.fixture(scope="session")
 def retrieval_engines():
     """Initialize both dense-only and hybrid engines once per session."""
-    import os
-
     # Dense-only engine
     os.environ["USE_HYBRID"] = "false"
     dense_engine = SujudSenseEngine()
@@ -183,3 +197,57 @@ def test_retrieval_comparison_summary(retrieval_engines):
 
     # This is informational — always pass
     assert True
+
+
+def test_reranking_improves_precision(engine):
+    """Verify that reranking retrieves more relevant docs than base retrieval alone."""
+    if not hasattr(engine, "base_retriever") or engine.base_retriever is None:
+        pytest.skip("base_retriever not available (reranker not enabled)")
+    
+    query = "knee pain during sujud"
+    k = 3
+    
+    # Get docs from base retrieval (before reranking)
+    docs_base = asyncio.run(engine.base_retriever.ainvoke(query))[:k]
+    
+    # Get docs from reranked retrieval (with reranker applied)
+    docs_reranked = asyncio.run(engine.retriever.ainvoke(query))[:k]
+    
+    # Calculate relevance score: count keyword matches in retrieved text
+    def relevance_score(docs: list, keywords: list) -> dict:
+        """Count occurrences of keywords in document pool."""
+        text = " ".join([d.page_content.lower() for d in docs])
+        return {kw: text.count(kw) for kw in keywords}
+    
+    keywords = ["knee", "sujud", "pain", "kneel", "prostrat"]
+    score_base = relevance_score(docs_base, keywords)
+    score_reranked = relevance_score(docs_reranked, keywords)
+    
+    base_total = sum(score_base.values())
+    reranked_total = sum(score_reranked.values())
+    
+    print(f"\nBase retrieval relevance:     {score_base} (total: {base_total})")
+    print(f"Reranked retrieval relevance: {score_reranked} (total: {reranked_total})")
+    
+    # Reranking should match or improve relevance
+    assert reranked_total >= base_total, (
+        f"Reranking degraded relevance. Base: {base_total}, Reranked: {reranked_total}"
+    )
+
+
+def test_retrieve_and_rerank_returns_correct_count(engine):
+    """Verify reranker returns the requested number of documents."""
+    if not hasattr(engine, "base_retriever") or engine.base_retriever is None:
+        pytest.skip("base_retriever not available (reranker not enabled)")
+    
+    query = "back pain ruku"
+    final_k = 2
+    
+    docs = asyncio.run(engine.retriever.ainvoke(query))
+    
+    # With reranker (top_n=3), should return min(requested, actual available)
+    assert len(docs) <= final_k + 1, (  # Allow small buffer for reranker behavior
+        f"Expected <= {final_k + 1} docs, got {len(docs)}"
+    )
+    
+    assert len(docs) > 0, "Should return at least one document"

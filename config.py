@@ -10,6 +10,9 @@ class AppConfig:
     chunk_size: int = int(os.getenv("CHUNK_SIZE", "500"))
     chunk_overlap: int = int(os.getenv("CHUNK_OVERLAP", "50"))
     retrieval_k: int = int(os.getenv("RETRIEVAL_K", "10"))
+    final_k: int = int(os.getenv("FINAL_K", "3"))
+    use_reranker: bool = os.getenv("USE_RERANKER", "true").lower() == "true"
+    reranker_model: str = os.getenv("RERANKER_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2")
     use_hybrid: bool = os.getenv("USE_HYBRID", "false").lower() == "true"
     hybrid_weights: List[float] = field(default_factory=lambda: [
         float(os.getenv("HYBRID_BM25_WEIGHT", "0.5")),
