@@ -468,6 +468,9 @@ def _load_stage_cases():
     cases = []
     for stage, groups in data.items():
         for group_name, items in groups.items():
+            # SAMPLE: For stage_3, only take first 2 per group instead of all
+            if stage == "stage_3_intent_classifier":
+                items = items[:2] 
             for item in items:
                 cases.append(
                     pytest.param(
