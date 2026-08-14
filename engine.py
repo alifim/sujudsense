@@ -1,7 +1,9 @@
 import logging
 import os
 import json
-from typing import Optional, cast, Any, Dict, List
+from typing import Optional, Any, Dict, List
+from collections import deque
+from datetime import datetime
 
 from groq import AsyncGroq
 from langchain_community.document_loaders import TextLoader
@@ -35,6 +37,10 @@ class SujudSenseEngine:
         self._chunks: List[Document] = []
         self.use_hybrid = getattr(config, "use_hybrid", False)
         self.hybrid_weights = getattr(config, "hybrid_weights", [0.5, 0.5])
+        
+        # LLM call tracking
+        self.llm_call_counts = {"condense": 0, "classify": 0, "generate": 0, "test": 0}
+        self.llm_call_log: deque = deque(maxlen=1000)  # last 1000 calls only
 
     
     def load_clean_sources(self) -> List[Document]:
@@ -191,6 +197,29 @@ class SujudSenseEngine:
             logger.error("Attempted execution before engine assets were initialized.")
             raise RuntimeError("Engine assets are not fully initialized")
 
+    def _track_llm(self, method: str, model: str, query_preview: str) -> None:
+        """Track LLM calls with timestamp, model, and query preview."""
+        self.llm_call_counts[method] += 1
+        self.llm_call_log.append({
+            "timestamp": datetime.now().isoformat(),
+            "method": method,
+            "model": model,
+            "query": query_preview[:80]
+        })
+
+    def get_llm_stats(self) -> dict:
+        """Safe for production — bounded, never grows unbounded."""
+        return {
+            "totals": dict(self.llm_call_counts),
+            "recent_calls": list(self.llm_call_log),
+            "recent_count": len(self.llm_call_log)
+        }
+
+    def reset_llm_counts(self) -> None:
+        """Use in tests only. In production, counts are cumulative by design."""
+        self.llm_call_counts = {"condense": 0, "classify": 0, "generate": 0}
+        self.llm_call_log.clear()
+
     def is_blocked_by_hardcoded_policy(self, query: str) -> bool:
         return SafetyPolicy.should_block(query)
 
@@ -276,6 +305,9 @@ class SujudSenseEngine:
                 "input": query,
             })
             llm_result = llm_result.strip()
+            
+            # Track LLM call
+            self._track_llm("condense", config.fast_llm_model, query)
 
             # Validate LLM output
             bad_patterns = ["yoga", "pose", "movement", "(prostration)", "(seated)"]
@@ -332,6 +364,10 @@ class SujudSenseEngine:
         
         content = response.choices[0].message.content
         assert content is not None, "Groq strict mode should always return content"
+        
+        # Track LLM call
+        self._track_llm("classify", config.fast_llm_model, standalone_query)
+        
         parsed = json.loads(content)
         return QueryIntent(**parsed)
 
@@ -489,6 +525,10 @@ class SujudSenseEngine:
                 logger.debug(f"Retrieved Chunk {i+1} Source: {src} | Preview: {doc.page_content[:100]}...")
 
         response = await self.rag_chain.ainvoke({"input": standalone_query})
+        
+        # Track LLM call
+        self._track_llm("generate", config.heavy_llm_model, standalone_query)
+        
         answer = (response.get("answer") or "").strip()
 
         truncated_indicators = ("adjust your", "you may need to adjust", "adjust", "to adjust")
