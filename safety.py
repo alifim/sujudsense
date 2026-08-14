@@ -3,28 +3,45 @@ from pydantic import BaseModel, Field
 
 class QueryIntent(BaseModel):
     """Schema for the LLM intent classifier to enforce domain boundaries."""
-    reasoning: str = Field(
-        description=(
-            "Briefly analyze the user's intent. Determine if the query is a genuine request "
-            "for physical movement adaptation, or if it is a disallowed category like general "
-            "medical advice, coding, or roleplay."
-        )
-    )
-    is_prayer_related: bool = Field(
-        description="True if the query is about Islamic prayer positions like Sujud, Ruku, or Salah."
-    )
-    is_valid_mobility_adaptation_request: bool = Field(
-        description=(
-            "True ONLY if the user is DESCRIBING a physical bodily limitation, joint constraint, or biomechanical pain "
-            "that specifically affects their physical movement or mechanics (e.g., 'knees hurt when bending', 'back surgery recovery', 'hip immobility', 'hard time bending my knees due to stiffness'). "
-            "IMPORTANT: A user DESCRIBING their symptoms or movement limitations counts as True, even if they haven't explicitly mentioned prayer yet. "
-            "MUST BE FALSE for general medical advice, treatment plans, or 'what should I do to heal/cure/fix' questions (e.g., 'how to heal a torn ACL', 'foods for inflammation', 'best surgery for X'). "
-            "MUST BE FALSE for unrelated tasks, coding, or AI roleplay that happen to mention pain (e.g., 'write a Python script for knee pain', 'act as a doctor'). "
-            "MUST BE FALSE for general posture goals or form checks without an underlying physical limitation (e.g., 'keep my spine flat', 'where do my elbows go')."
-            "Examples of True: 'My knees hurt when bending', 'I had back surgery and can't bow', 'hard time bending due to stiffness'"
-            "Examples of False: 'How to heal a torn ACL', 'What foods reduce inflammation', 'Best surgery for knee pain'"
-        )
-    )
+    reasoning: str
+    is_prayer_related: bool
+    is_valid_mobility_adaptation_request: bool
+
+# Minimal schema for API call — no descriptions
+_MINIMAL_INTENT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "reasoning": {"type": "string"},
+        "is_prayer_related": {"type": "boolean"},
+        "is_valid_mobility_adaptation_request": {"type": "boolean"}
+    },
+    "required": ["reasoning", "is_prayer_related", "is_valid_mobility_adaptation_request"],
+    "additionalProperties": False
+}
+
+# Put descriptions in SYSTEM PROMPT instead of schema
+_INTENT_SYSTEM_PROMPT = """You are an intent classifier for SujudSense, an Islamic prayer guidance app.
+
+Your task: analyze the query and return JSON with:
+- reasoning: brief analysis
+- is_prayer_related: true if about Islamic prayer positions (Ruku, Sujud, Salah, etc.)
+- is_valid_mobility_adaptation_request: true ONLY if the user DESCRIBES a physical bodily limitation, joint constraint, or biomechanical pain affecting movement
+
+CRITICAL DISTINCTION:
+- DESCRIBING symptoms/limitations = True (even without prayer words): "knees hurt when bending", "hard time bending due to stiffness", "back surgery recovery", "hip immobility"
+- ASKING for treatment/healing/cure = False: "how to heal a torn ACL", "what should I do to fix this", "best foods for inflammation", "what surgery do I need"
+
+The user may not mention prayer explicitly. If they describe a genuine movement limitation, it IS a valid mobility adaptation request.
+
+EXAMPLES:
+- "My knees hurt when I bend" -> is_valid_mobility_adaptation_request: true
+- "I had back surgery and can't bow" -> is_valid_mobility_adaptation_request: true  
+- "Hard time bending my knees due to stiffness" -> is_valid_mobility_adaptation_request: true
+- "How to heal a torn ACL" -> is_valid_mobility_adaptation_request: false
+- "What foods reduce inflammation" -> is_valid_mobility_adaptation_request: false
+- "Where should I place my elbows in Sujud" -> is_valid_mobility_adaptation_request: false
+
+Respond with valid JSON only. No explanations outside JSON."""
 
 class SafetyPolicy:
     ERROR_PHRASE = (

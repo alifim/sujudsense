@@ -25,7 +25,7 @@ from langchain_community.cross_encoders import HuggingFaceCrossEncoder
 
 from config import config
 from logger import logger
-from safety import SafetyPolicy, QueryIntent
+from safety import SafetyPolicy, QueryIntent, _INTENT_SYSTEM_PROMPT, _MINIMAL_INTENT_SCHEMA
 
 
 class SujudSenseEngine:
@@ -338,18 +338,10 @@ class SujudSenseEngine:
     async def classify_intent(self, standalone_query: str) -> QueryIntent:
         self._ensure_initialized()
         
-        # Build strict JSON schema from Pydantic model
-        schema = QueryIntent.model_json_schema()
-        schema["additionalProperties"] = False  # required for strict mode
-        schema["required"] = list(schema.get("properties", {}).keys())  # all fields required
-        
-        system_prompt = """You are an intent classifier for SujudSense, an Islamic prayer guidance app.
-    Analyze the user's query and classify it according to the schema."""
-        
         response = await self.groq_client.chat.completions.create(
             model=config.fast_llm_model, 
             messages=[
-                {"role": "system", "content": system_prompt},
+                {"role": "system", "content": _INTENT_SYSTEM_PROMPT},
                 {"role": "user", "content": standalone_query}
             ],
             response_format={
@@ -357,7 +349,7 @@ class SujudSenseEngine:
                 "json_schema": {
                     "name": "query_intent",
                     "strict": True,
-                    "schema": schema
+                    "schema": _MINIMAL_INTENT_SCHEMA
                 }
             }
         )
