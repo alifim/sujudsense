@@ -18,6 +18,26 @@ ERROR_PHRASE = SafetyPolicy.ERROR_PHRASE
 TEST_SET_PATH = Path("tests/test_set.json")
 
 # ---------------------------------------------------------------------------
+# LLM call tracking helpers
+# ---------------------------------------------------------------------------
+
+def _assert_llm_calls(engine, expected: dict, test_id: str):
+    """Assert exact LLM call counts and print diagnostics on failure."""
+    actual = {k: engine.llm_call_counts.get(k, 0) for k in ["condense", "classify", "generate"]}
+    if actual != expected:
+        recent = list(engine.llm_call_log)[-5:] if engine.llm_call_log else []
+        log_lines = "\n  ".join(
+            f"{c['method']} | {c['model']} | '{c['query']}...'"
+            for c in recent
+        )
+        pytest.fail(
+            f"[{test_id}] Unexpected LLM calls.\n"
+            f"  Expected: {expected}\n"
+            f"  Actual:   {actual}\n"
+            f"  Recent calls:\n  {log_lines}"
+        )
+
+# ---------------------------------------------------------------------------
 # Helper: Smart mock intent classifier
 # ---------------------------------------------------------------------------
 
@@ -461,31 +481,35 @@ def _load_stage_cases():
 @pytest.mark.parametrize("query,stage,group", _load_stage_cases())
 def test_pipeline_stage(engine, query, stage, group):
     """One test per test_set.json case. Only stage_3 uses real LLM; others use fast logic."""
+    
+    engine.reset_llm_counts()  # Reset before each case
 
     if stage == "stage_1_hardcoded_block":
         blocked = engine.is_blocked_by_hardcoded_policy(query)
         expected = (group == "should_block")
         assert blocked == expected, f"[{group}] query={query!r} -> blocked={blocked}"
+        _assert_llm_calls(engine, {"condense": 0, "classify": 0, "generate": 0}, 
+                         f"{stage}::{group}")
 
     elif stage == "stage_1_hardcoded_capability":
         triggered = engine.is_capability_query(query)
         expected = (group == "should_trigger")
         assert triggered == expected, f"[{group}] query={query!r} -> triggered={triggered}"
+        _assert_llm_calls(engine, {"condense": 0, "classify": 0, "generate": 0},
+                         f"{stage}::{group}")
 
     elif stage == "stage_2_vector_firewall":
-        # Early exit: call ONLY vector firewall, no condenser, no classifier
         score = asyncio.run(engine.vector_firewall_score(query))
         vector_pass = score is None or score <= config.firewall_threshold
         expected = (group == "in_scope")
         assert vector_pass == expected, (
             f"[{group}] query={query!r} -> vector_pass={vector_pass} score={score}"
         )
+        _assert_llm_calls(engine, {"condense": 0, "classify": 0, "generate": 0},
+                         f"{stage}::{group}")
 
     elif stage == "stage_3_intent_classifier":
-        # ONLY stage that calls real LLM. Delay to respect Groq RPM.
         asyncio.run(asyncio.sleep(2.5))
-
-        # Condense first (1 fast LLM), then classify (1 fast LLM)
         standalone = asyncio.run(engine.condense_query(query, []))
         intent = asyncio.run(engine.classify_intent(standalone))
         actual = (intent.is_prayer_related, intent.is_valid_mobility_adaptation_request)
@@ -498,6 +522,23 @@ def test_pipeline_stage(engine, query, stage, group):
         assert actual == expected_map[group], (
             f"[{group}] query={query!r} -> intent={intent.model_dump()}"
         )
+        _assert_llm_calls(engine, {"condense": 0, "classify": 1, "generate": 0},
+                         f"{stage}::{group}")
 
     else:
         pytest.fail(f"Unknown stage in test_set.json: {stage}")
+
+
+def test_llm_call_summary(engine):
+    """Final diagnostic: print cumulative LLM usage for the test session."""
+    stats = engine.get_llm_stats()
+    print(f"\n{'='*60}")
+    print("SESSION LLM CALL SUMMARY")
+    print(f"{'='*60}")
+    print(f"Totals: {stats['totals']}")
+    print(f"Recent calls logged: {stats['recent_count']}")
+    for call in list(stats['recent_calls'])[-10:]:
+        print(f"  [{call['timestamp']}] {call['method']} | {call['model']} | {call['query']}...")
+    print(f"{'='*60}")
+    # Soft assertion — don't fail, just inform
+    assert True
