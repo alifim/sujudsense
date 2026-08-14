@@ -3,6 +3,7 @@ import os
 import json
 from typing import Optional, cast, Any, Dict, List
 
+from groq import AsyncGroq
 from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
@@ -304,7 +305,35 @@ class SujudSenseEngine:
 
     async def classify_intent(self, standalone_query: str) -> QueryIntent:
         self._ensure_initialized()
-        return cast(QueryIntent, await self.intent_classifier.ainvoke(standalone_query))
+        
+        # Build strict JSON schema from Pydantic model
+        schema = QueryIntent.model_json_schema()
+        schema["additionalProperties"] = False  # required for strict mode
+        schema["required"] = list(schema.get("properties", {}).keys())  # all fields required
+        
+        system_prompt = """You are an intent classifier for SujudSense, an Islamic prayer guidance app.
+    Analyze the user's query and classify it according to the schema."""
+        
+        response = await self.groq_client.chat.completions.create(
+            model=config.fast_llm_model, 
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": standalone_query}
+            ],
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "query_intent",
+                    "strict": True,
+                    "schema": schema
+                }
+            }
+        )
+        
+        content = response.choices[0].message.content
+        assert content is not None, "Groq strict mode should always return content"
+        parsed = json.loads(content)
+        return QueryIntent(**parsed)
 
     async def intent_allows_query(self, standalone_query: str) -> tuple[bool, QueryIntent]:
         if SafetyPolicy.is_obvious_mobility_adaptation(standalone_query):
@@ -349,8 +378,8 @@ class SujudSenseEngine:
             max_tokens=config.fast_llm_model_max_tokens
         )
         
-        # Build intent classifier
-        self.intent_classifier = deterministic_llm.with_structured_output(QueryIntent)
+        # Build intent classifier using Groq client directly since GPT OSS doesn't support tool-calling
+        self.groq_client = AsyncGroq(api_key=os.getenv("GROQ_API_KEY"))
 
         # Build FEW-SHOT condenser (replaces the old generic condenser)
         condense_system = (
