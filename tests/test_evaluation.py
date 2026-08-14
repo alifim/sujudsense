@@ -10,6 +10,8 @@ from engine import SujudSenseEngine
 from safety import SafetyPolicy, QueryIntent
 from langchain_core.messages import HumanMessage, AIMessage
 
+from config import config
+
 REFUSAL_PHRASE = SafetyPolicy.REFUSAL_PHRASE
 JAILBREAK_PHRASE = SafetyPolicy.JAILBREAK_PHRASE
 ERROR_PHRASE = SafetyPolicy.ERROR_PHRASE
@@ -471,20 +473,22 @@ def test_pipeline_stage(engine, query, stage, group):
         assert triggered == expected, f"[{group}] query={query!r} -> triggered={triggered}"
 
     elif stage == "stage_2_vector_firewall":
-        stage_outcome = asyncio.run(engine.evaluate_stages(query, []))
+        # Early exit: call ONLY vector firewall, no condenser, no classifier
+        score = asyncio.run(engine.vector_firewall_score(query))
+        vector_pass = score is None or score <= config.firewall_threshold
         expected = (group == "in_scope")
-        assert stage_outcome["vector_pass"] == expected, (
-            f"[{group}] query={query!r} -> vector_pass={stage_outcome['vector_pass']} "
-            f"score={stage_outcome['vector_score']}"
+        assert vector_pass == expected, (
+            f"[{group}] query={query!r} -> vector_pass={vector_pass} score={score}"
         )
 
     elif stage == "stage_3_intent_classifier":
         # ONLY stage that calls real LLM. Delay to respect Groq RPM.
         asyncio.run(asyncio.sleep(2.5))
 
-        stage_outcome = asyncio.run(engine.evaluate_stages(query, []))
-        intent = stage_outcome["intent"]
-        actual = (intent["is_prayer_related"], intent["is_valid_mobility_adaptation_request"])
+        # Condense first (1 fast LLM), then classify (1 fast LLM)
+        standalone = asyncio.run(engine.condense_query(query, []))
+        intent = asyncio.run(engine.classify_intent(standalone))
+        actual = (intent.is_prayer_related, intent.is_valid_mobility_adaptation_request)
         expected_map = {
             "both_true": (True, True),
             "prayer_only": (True, False),
@@ -492,7 +496,7 @@ def test_pipeline_stage(engine, query, stage, group):
             "neither": (False, False),
         }
         assert actual == expected_map[group], (
-            f"[{group}] query={query!r} -> intent={intent}"
+            f"[{group}] query={query!r} -> intent={intent.model_dump()}"
         )
 
     else:
