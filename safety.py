@@ -15,11 +15,14 @@ class QueryIntent(BaseModel):
     )
     is_valid_mobility_adaptation_request: bool = Field(
         description=(
-            "True ONLY if the user is describing a physical bodily limitation, joint constraint, or biomechanical pain "
-            "that specifically affects their physical movement or mechanics (e.g., 'knees hurt when bending', 'back surgery recovery', 'hip immobility'). "
-            "MUST BE FALSE for general medical advice, dietary questions, or treatment plans (e.g., 'how to heal a torn ACL', 'foods for inflammation'). "
+            "True ONLY if the user is DESCRIBING a physical bodily limitation, joint constraint, or biomechanical pain "
+            "that specifically affects their physical movement or mechanics (e.g., 'knees hurt when bending', 'back surgery recovery', 'hip immobility', 'hard time bending my knees due to stiffness'). "
+            "IMPORTANT: A user DESCRIBING their symptoms or movement limitations counts as True, even if they haven't explicitly mentioned prayer yet. "
+            "MUST BE FALSE for general medical advice, treatment plans, or 'what should I do to heal/cure/fix' questions (e.g., 'how to heal a torn ACL', 'foods for inflammation', 'best surgery for X'). "
             "MUST BE FALSE for unrelated tasks, coding, or AI roleplay that happen to mention pain (e.g., 'write a Python script for knee pain', 'act as a doctor'). "
             "MUST BE FALSE for general posture goals or form checks without an underlying physical limitation (e.g., 'keep my spine flat', 'where do my elbows go')."
+            "Examples of True: 'My knees hurt when bending', 'I had back surgery and can't bow', 'hard time bending due to stiffness'"
+            "Examples of False: 'How to heal a torn ACL', 'What foods reduce inflammation', 'Best surgery for knee pain'"
         )
     )
 
